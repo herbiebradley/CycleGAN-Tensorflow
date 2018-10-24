@@ -12,7 +12,7 @@ import PIL
 """### Define Hyperparameters"""
 
 learning_rate = 0.0002
-batch_size = 1 ## Set batch size to 4 or 16 if training multigpu
+batch_size = 1 # Set batch size to 4 or 16 if training multigpu
 img_size = 256
 cyc_lambda = 10
 epochs = 1
@@ -293,11 +293,6 @@ def cycle_consistency_loss(data_A, data_B, reconstructed_data_A, reconstructed_d
   return cyc_lambda * loss
 
 def generate_images(fake_A, fake_B):
-  # the training=True is intentional here since
-  # we want the batch statistics while running the model
-  # on the test dataset. If we use training=False, we will get
-  # the accumulated statistics learned from the training dataset
-  # (which we don't want)
   plt.figure(figsize=(15,15))
   fake_A = tf.reshape(fake_A, [256, 256, 3])
   fake_B = tf.reshape(fake_B, [256, 256, 3])
