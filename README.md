@@ -1,7 +1,7 @@
 CycleGAN-Tensorflow
 ==============================
 
-A Tensorflow implementation of CycleGAN using Eager Execution, tf.keras.layers, and tf.data.
+A Tensorflow implementation of [Unpaired Image-to-Image Translation using Cycle-Consistent Adversarial Networks](https://arxiv.org/abs/1703.10593) using Eager Execution, tf.keras.layers, and tf.data.
 
 Project Organization
 ------------
