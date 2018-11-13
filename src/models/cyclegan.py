@@ -254,38 +254,53 @@ def generator_loss(disc_of_gen_output, lsgan=True):
         gen_loss = tf.losses.sigmoid_cross_entropy(multi_class_labels = tf.ones_like(disc_generated_output), logits = disc_generated_output)
         #l1_loss = tf.reduce_mean(tf.abs(target - gen_output)) # Look up pix2pix loss
 
-      return gen_loss
+    return gen_loss
 
 def cycle_consistency_loss(data_A, data_B, reconstructed_data_A, reconstructed_data_B, cyc_lambda=10):
-      loss = tf.reduce_mean(tf.abs(data_A - reconstructed_data_A) + tf.abs(data_B - reconstructed_data_B))
-      return cyc_lambda * loss
+    loss = tf.reduce_mean(tf.abs(data_A - reconstructed_data_A) + tf.abs(data_B - reconstructed_data_B))
+    return cyc_lambda * loss
 
 def generate_images(fake_A, fake_B):
     plt.figure(figsize=(15,15))
     fake_A = tf.reshape(fake_A, [256, 256, 3])
     fake_B = tf.reshape(fake_B, [256, 256, 3])
     display_list = [fake_A, fake_B]
-    title = ['Generated A', 'Generated B']
+    title = ["Generated A", "Generated B"]
     for i in range(2):
         plt.subplot(1, 2, i+1)
         plt.title(title[i])
         # getting the pixel values between [0, 1] to plot it.
         plt.imshow(display_list[i] * 0.5 + 0.5)
-        plt.axis('off')
+        plt.axis("off")
     plt.show()
 
-def define_checkpoint():
-    checkpoint_dir = './training_checkpoints'
+def define_checkpoint(checkpoint_dir, model):
+    nets, optimizers = model
+    discA = nets["discA"]
+    discB = nets["discB"]
+    genA2B = nets["genA2B"]
+    genB2A = nets["genB2A"]
+
+    discA_opt = optimizers["discA_opt"]
+    discB_opt = optimizers["discB_opt"]
+    genA2B_opt = optimizers["genA2B_opt"]
+    genB2A_opt = optimizers["genB2A_opt"]
+
     checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
-    checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
-                                 discriminator_optimizer=discriminator_optimizer,
-                                 generator=generator,
-                                 discriminator=discriminator)
+    checkpoint = tf.train.Checkpoint(discA=discA, discB=discB, genA2B=genA2B, genB2A=genB2A,
+                                 discA_opt=discA_opt, discB_opt=discB_opt,
+                                 genA2B_opt=genA2B_opt, genB2A_opt=genB2A_opt,
+                                 optimizer_step=tf.train.get_or_create_global_step())
+    return checkpoint, checkpoint_dir, checkpoint_prefix
 
-def restore_from_checkpoint():
-    checkpoint.restore(tf.train.latest_checkpoint(checkpoint_dir))
+def restore_from_checkpoint(checkpoint, checkpoint_dir):
+    if tf.train.latest_checkpoint(checkpoint_dir) is not None:
+        checkpoint.restore(tf.train.latest_checkpoint(checkpoint_dir))
+        print("Checkpoint restored")
+    else:
+        print("No checkpoint found, initializing model.")
 
-def define_model(learning_rate):
+def define_model(learning_rate, training=True): # Init only generators for testing
     discA = Discriminator()
     discB = Discriminator()
     genA2B = Generator()
@@ -296,31 +311,35 @@ def define_model(learning_rate):
     genA2B_opt = tf.train.AdamOptimizer(learning_rate, beta1=0.5)
     genB2A_opt = tf.train.AdamOptimizer(learning_rate, beta1=0.5)
 
-    model_dict = {"discA":discA, "discB":discB, "genA2B":genA2B, "genB2A":genB2A}
-    optim_dict = {"discA_opt":discA_opt, "discB_opt":discB_opt, "genA2B_opt":genA2B_opt, "genB2A_opt":genB2A_opt}
-    return model_dict, optim_dict
+    nets = {"discA":discA, "discB":discB, "genA2B":genA2B, "genB2A":genB2A}
+    optimizers = {"discA_opt":discA_opt, "discB_opt":discB_opt, "genA2B_opt":genA2B_opt, "genB2A_opt":genB2A_opt}
+    return nets, optimizers
 
-def train(train_datasetA, train_datasetB, epochs, lsgan=True, learning_rate=learning_rate, cyc_lambda=10):
-    model_dict, optim_dict = define_model(learning_rate=learning_rate)
+def train(data, model, checkpoints, epochs, learning_rate=learning_rate, lsgan=True):
+    nets, optimizers = model
+    discA = nets["discA"]
+    discB = nets["discB"]
+    genA2B = nets["genA2B"]
+    genB2A = nets["genB2A"]
 
-    discA = model_dict["discA"]
-    discB = model_dict["discB"]
-    genA2B = model_dict["genA2B"]
-    genB2A = model_dict["genB2A"]
+    discA_opt = optimizers["discA_opt"]
+    discB_opt = optimizers["discB_opt"]
+    genA2B_opt = optimizers["genA2B_opt"]
+    genB2A_opt = optimizers["genB2A_opt"]
 
-    discA_opt = optim_dict["discA_opt"]
-    discB_opt = optim_dict["discB_opt"]
-    genA2B_opt = optim_dict["genA2B_opt"]
-    genB2A_opt = optim_dict["genB2A_opt"]
+    checkpoint, checkpoint_dir, checkpoint_prefix = checkpoints
+    restore_from_checkpoint(checkpoint, checkpoint_dir)
+
+    train_datasetA, train_datasetB = data
 
     for epoch in range(epochs):
         start = time.time()
-        for i in range(1334):
+        for train_step in range(5): #!!!
 
             with tf.GradientTape() as genA2B_tape, tf.GradientTape() as genB2A_tape, \
                 tf.GradientTape() as discA_tape, tf.GradientTape() as discB_tape:
                 try:
-                    # Next training minibatches, default size 1
+                    # Get next training minibatches
                     trainA = next(train_datasetA)
                     trainB = next(train_datasetB)
                 except tf.errors.OutOfRangeError:
@@ -344,9 +363,9 @@ def train(train_datasetA, train_datasetB, epochs, lsgan=True, learning_rate=lear
                 discB_loss = discriminator_loss(discB_real_output, discB_fake_output, lsgan=lsgan)
 
                 genA2B_loss = generator_loss(discB_fake_output, lsgan=lsgan) + \
-                              cycle_consistency_loss(trainA, trainB, reconstructedA, reconstructedB, cyc_lambda=cyc_lambda)
+                              cycle_consistency_loss(trainA, trainB, reconstructedA, reconstructedB)
                 genB2A_loss = generator_loss(discA_fake_output, lsgan=lsgan) + \
-                              cycle_consistency_loss(trainA, trainB, reconstructedA, reconstructedB, cyc_lambda=cyc_lambda)
+                              cycle_consistency_loss(trainA, trainB, reconstructedA, reconstructedB)
 
             genA2B_gradients = genA2B_tape.gradient(genA2B_loss, genA2B.variables)
             genB2A_gradients = genB2A_tape.gradient(genB2A_loss, genB2A.variables)
@@ -354,20 +373,30 @@ def train(train_datasetA, train_datasetB, epochs, lsgan=True, learning_rate=lear
             discA_gradients = discA_tape.gradient(discA_loss, discA.variables)
             discB_gradients = discB_tape.gradient(discB_loss, discB.variables)
 
-            genA2B_opt.apply_gradients(zip(genA2B_gradients, genA2B.variables))
-            genB2A_opt.apply_gradients(zip(genB2A_gradients, genB2A.variables))
+            genA2B_opt.apply_gradients(zip(genA2B_gradients, genA2B.variables),
+                                       global_step=tf.train.get_or_create_global_step())
+            genB2A_opt.apply_gradients(zip(genB2A_gradients, genB2A.variables),
+                                       global_step=tf.train.get_or_create_global_step())
 
-            discA_opt.apply_gradients(zip(discA_gradients, discA.variables))
-            discB_opt.apply_gradients(zip(discB_gradients, discB.variables))
+            discA_opt.apply_gradients(zip(discA_gradients, discA.variables),
+                                      global_step=tf.train.get_or_create_global_step())
+            discB_opt.apply_gradients(zip(discB_gradients, discB.variables),
+                                      global_step=tf.train.get_or_create_global_step())
 
-            print("Training step: ", i)
+            print("Training step: ", train_step)
 
-            # saving (checkpoint) the model every 20 epochs
-            #if (epoch + 1) % 20 == 0:
-                #checkpoint.save(file_prefix = checkpoint_prefix)
+            # saving (checkpoint) the model
+            if (epoch + 1) % 20 == 0:
+                checkpoint.save(file_prefix=checkpoint_prefix)
+                print("Checkpoint saved at ", checkpoint_prefix)
 
-        print ('Time taken for epoch {} is {} sec\n'.format(epoch + 1, time.time()-start))
+        print ("Time taken for epoch {} is {} sec\n".format(epoch + 1, time.time()-start))
 
 if __name__ == "__main__":
-    train_datasetA, train_datasetB = load_data(batch_size=batch_size)
-    train(train_datasetA, train_datasetB, epochs=1, lsgan=True, learning_rate=learning_rate, cyc_lambda=cyc_lambda)
+    checkpoint_dir = os.path.join(project_dir, "models", "checkpoints")
+    with tf.device("/cpu:0"):
+        data = load_data(batch_size=batch_size, epochs=epochs)
+    #with tf.device("/gpu:0"):
+        model = define_model(learning_rate=learning_rate)
+        checkpoints = define_checkpoint(checkpoint_dir, model)
+        train(data, model, checkpoints, epochs=epochs, learning_rate=learning_rate, lsgan=True)
