@@ -1,13 +1,13 @@
 import tensorflow as tf
 import numpy as np
+import matplotlib.pyplot as plt
 tf.enable_eager_execution()
 
 import os
 import time
 import glob
-import matplotlib.pyplot as plt
 import PIL
-#from IPython import display
+from IPython import display
 
 """ Define Hyperparameters"""
 
@@ -16,37 +16,54 @@ batch_size = 1 # Set batch size to 4 or 16 if training multigpu
 img_size = 256
 cyc_lambda = 10
 epochs = 1
+batches_per_epoch = 0
+project_dir = os.path.abspath(os.path.join(os.getcwd(), os.pardir + os.sep + os.pardir))
 
 """ Load Datasets"""
 
-def load_image(image_file, is_train):
+def load_image(image_file):
     image = tf.read_file(image_file)
     image = tf.image.decode_jpeg(image, channels=3)
-    image = tf.cast(image, tf.float32)
-    image = tf.image.resize_images(image, [256, 256])
+    image = tf.image.convert_image_dtype(image, tf.float32)
+    image = tf.image.resize_images(image, [img_size, img_size])
     image = (image / 127.5) - 1
     return image
 
-def load_data(batch_size=batch_size):
-    path_to_zip = tf.keras.utils.get_file('horse2zebra.zip', cache_subdir=os.path.abspath('.'),
-        origin='https://people.eecs.berkeley.edu/~taesung_park/CycleGAN/datasets/horse2zebra.zip',
+def download_data(download_location):
+    path_to_zip = tf.keras.utils.get_file("horse2zebra.zip", cache_subdir=os.path.abspath(download_location),
+        origin="https://people.eecs.berkeley.edu/~taesung_park/CycleGAN/datasets/horse2zebra.zip",
         extract=True)
+    os.remove(path_to_zip)
 
-    PATH = os.path.join(os.path.dirname(path_to_zip), 'horse2zebra/')
+def load_data(batch_size=batch_size, epochs=epochs, download=False):
+    raw_data = os.path.join(project_dir, "data", "raw")
+    if download:
+        download_data(download_location=raw_data)
 
-    train_datasetA = tf.data.Dataset.list_files(PATH+'trainA/*.jpg')
-    train_datasetA = train_datasetA.shuffle(1067)
-    train_datasetA = train_datasetA.map(lambda x: load_image(x, True))
-    train_datasetA = train_datasetA.batch(batch_size) # Repeat() here?
+    path_to_dataset = os.path.join(raw_data, "horse2zebra/")
+    trainA_path = os.path.join(path_to_dataset, "trainA")
+    trainB_path = os.path.join(path_to_dataset, "trainB")
+
+    trainA_size = len(os.listdir(trainA_path))
+    trainB_size = len(os.listdir(trainB_path))
+    files_per_epoch = (trainA_size + trainB_size) / 2
+
+    train_datasetA = tf.data.Dataset.list_files(trainA_path + os.sep + "*.jpg", shuffle=False)
+    train_datasetA = train_datasetA.shuffle(trainA_size).repeat(epochs)
+    train_datasetA = train_datasetA.map(lambda x: load_image(x)) #num_parallel_calls=threads)
+    train_datasetA = train_datasetA.batch(batch_size)
+    train_datasetA = train_datasetA.prefetch(batch_size)
     train_datasetA = iter(train_datasetA)
 
-    train_datasetB = tf.data.Dataset.list_files(PATH+'trainB/*.jpg')
-    train_datasetB = train_datasetB.shuffle(1334)
-    train_datasetB = train_datasetB.map(lambda x: load_image(x, True))
-    train_datasetB = train_datasetB.batch(batch_size) # Repeat() here?
+    train_datasetB = tf.data.Dataset.list_files(trainB_path + os.sep + "*.jpg", shuffle=False)
+    train_datasetB = train_datasetB.shuffle(trainB_size).repeat(epochs)
+    train_datasetB = train_datasetB.map(lambda x: load_image(x))
+    train_datasetB = train_datasetB.batch(batch_size)
+    train_datasetB = train_datasetB.prefetch(batch_size)
     train_datasetB = iter(train_datasetB)
 
     return train_datasetA, train_datasetB
+
 """ Define CycleGAN architecture"""
 
 class Encoder(tf.keras.Model):
@@ -54,10 +71,10 @@ class Encoder(tf.keras.Model):
     def __init__(self):
         super(Encoder, self).__init__()
 
-        # Small variance in initialization helps with
+        # Small variance in initialization helps with preventing colour inversion.
         self.conv1 = tf.keras.layers.Conv2D(32, kernel_size=7, strides=1, kernel_initializer=tf.truncated_normal_initializer(stddev=0.02))
-        self.conv2 = tf.keras.layers.Conv2D(64, kernel_size=3, strides=2, padding='same', kernel_initializer=tf.truncated_normal_initializer(stddev=0.02))
-        self.conv3 = tf.keras.layers.Conv2D(128, kernel_size=3, strides=2, padding='same', kernel_initializer=tf.truncated_normal_initializer(stddev=0.02))
+        self.conv2 = tf.keras.layers.Conv2D(64, kernel_size=3, strides=2, padding="same", kernel_initializer=tf.truncated_normal_initializer(stddev=0.02))
+        self.conv3 = tf.keras.layers.Conv2D(128, kernel_size=3, strides=2, padding="same", kernel_initializer=tf.truncated_normal_initializer(stddev=0.02))
 
     def call(self, inputs, training=True):
         x = tf.pad(inputs, [[0, 0], [3, 3], [3, 3], [0, 0]], "REFLECT")
@@ -98,7 +115,7 @@ class Residual(tf.keras.Model):
         x = tf.contrib.layers.instance_norm(x, epsilon=1e-05, trainable=training)
 
         x = tf.add(x, inputs)
-    return x
+        return x
 
 
 class Decoder(tf.keras.Model):
@@ -106,8 +123,8 @@ class Decoder(tf.keras.Model):
     def __init__(self):
         super(Decoder, self).__init__()
 
-        self.conv1 = tf.keras.layers.Conv2DTranspose(64, kernel_size=3, strides=2, padding='same', kernel_initializer=tf.truncated_normal_initializer(stddev=0.02))
-        self.conv2 = tf.keras.layers.Conv2DTranspose(32, kernel_size=3, strides=2, padding='same', kernel_initializer=tf.truncated_normal_initializer(stddev=0.02))
+        self.conv1 = tf.keras.layers.Conv2DTranspose(64, kernel_size=3, strides=2, padding="same", kernel_initializer=tf.truncated_normal_initializer(stddev=0.02))
+        self.conv2 = tf.keras.layers.Conv2DTranspose(32, kernel_size=3, strides=2, padding="same", kernel_initializer=tf.truncated_normal_initializer(stddev=0.02))
         self.conv3 = tf.keras.layers.Conv2D(3, kernel_size=7, strides=1, kernel_initializer=tf.truncated_normal_initializer(stddev=0.02))
 
     def call(self, inputs, training=True):
@@ -123,7 +140,7 @@ class Decoder(tf.keras.Model):
 
         x = self.conv3(x)
         x = tf.contrib.layers.instance_norm(x, epsilon=1e-05, trainable=training)
-        x = tf.nn.tanh(x) # Add 1 and multiply by 127.5 to put img in range [0, 255]?
+        x = tf.nn.tanh(x)
         return x
 
 
@@ -183,11 +200,11 @@ class Discriminator(tf.keras.Model):
     def __init__(self):
         super(Discriminator, self).__init__()
 
-        self.conv1 = tf.keras.layers.Conv2D(64, kernel_size=4, strides=2, padding='same', kernel_initializer=tf.truncated_normal_initializer(stddev=0.02))
-        self.conv2 = tf.keras.layers.Conv2D(128, kernel_size=4, strides=2, padding='same', kernel_initializer=tf.truncated_normal_initializer(stddev=0.02))
-        self.conv3 = tf.keras.layers.Conv2D(256, kernel_size=4, strides=2, padding='same', kernel_initializer=tf.truncated_normal_initializer(stddev=0.02))
-        self.conv4 = tf.keras.layers.Conv2D(512, kernel_size=4, strides=1, padding='same', kernel_initializer=tf.truncated_normal_initializer(stddev=0.02))
-        self.conv5 = tf.keras.layers.Conv2D(1, kernel_size=4, strides=1, padding='same', kernel_initializer=tf.truncated_normal_initializer(stddev=0.02))
+        self.conv1 = tf.keras.layers.Conv2D(64, kernel_size=4, strides=2, padding="same", kernel_initializer=tf.truncated_normal_initializer(stddev=0.02))
+        self.conv2 = tf.keras.layers.Conv2D(128, kernel_size=4, strides=2, padding="same", kernel_initializer=tf.truncated_normal_initializer(stddev=0.02))
+        self.conv3 = tf.keras.layers.Conv2D(256, kernel_size=4, strides=2, padding="same", kernel_initializer=tf.truncated_normal_initializer(stddev=0.02))
+        self.conv4 = tf.keras.layers.Conv2D(512, kernel_size=4, strides=1, padding="same", kernel_initializer=tf.truncated_normal_initializer(stddev=0.02))
+        self.conv5 = tf.keras.layers.Conv2D(1, kernel_size=4, strides=1, padding="same", kernel_initializer=tf.truncated_normal_initializer(stddev=0.02))
 
         self.leaky = tf.keras.layers.LeakyReLU(0.2)
 
@@ -211,7 +228,8 @@ class Discriminator(tf.keras.Model):
         x = self.conv5(x)
         #x = tf.nn.sigmoid(x) # use_sigmoid = not lsgan
         return x
-"""### Define Loss functions"""
+
+"""Define Loss functions"""
 
 def discriminator_loss(disc_of_real_output, disc_of_gen_output, lsgan=True):
     if lsgan: # Use least squares loss
