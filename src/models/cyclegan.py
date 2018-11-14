@@ -7,8 +7,6 @@ import os
 import time
 import multiprocessing
 import glob
-import PIL
-from IPython import display
 
 """ Define Hyperparameters"""
 
@@ -17,7 +15,7 @@ batch_size = 1 # Set batch size to 4 or 16 if training multigpu
 img_size = 256
 cyc_lambda = 10
 epochs = 5
-batches_per_epoch = (trainA_size + trainB_size) / (2* batch_size) # Average dataset size / batch_size
+batches_per_epoch = 0
 project_dir = os.path.abspath(os.path.join(os.getcwd(), os.pardir + os.sep + os.pardir))
 
 """ Load Datasets"""
@@ -47,6 +45,7 @@ def load_data(batch_size=batch_size, download=False):
 
     trainA_size = len(os.listdir(trainA_path))
     trainB_size = len(os.listdir(trainB_path))
+    batches_per_epoch = (trainA_size + trainB_size) / (2* batch_size) # Average dataset size / batch_size
     threads = multiprocessing.cpu_count()
 
     train_datasetA = tf.data.Dataset.list_files(trainA_path + os.sep + "*.jpg", shuffle=False)
