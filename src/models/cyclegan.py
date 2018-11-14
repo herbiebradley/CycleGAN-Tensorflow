@@ -380,7 +380,7 @@ def train(data, model, checkpoints, epochs, learning_rate=learning_rate, lsgan=T
             discB_opt.apply_gradients(zip(discB_gradients, discB.variables),
                                       global_step=tf.train.get_or_create_global_step())
 
-            print("Training step: ", train_step)
+            #print("Training step: ", train_step)
             # saving (checkpoint) the model
             if (epoch + 1) % 3 == 0:
                 checkpoint.save(file_prefix=checkpoint_prefix)
