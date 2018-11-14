@@ -50,19 +50,19 @@ def load_data(batch_size=batch_size, download=False):
     threads = multiprocessing.cpu_count()
 
     train_datasetA = tf.data.Dataset.list_files(trainA_path + os.sep + "*.jpg", shuffle=False)
-    train_datasetA = train_datasetA.apply(tf.data.experimental.shuffle_and_repeat(buffer_size=trainA_size))
-    train_datasetA = train_datasetB.apply(tf.data.experimental.map_and_batch(lambda x: load_image(x),
-                                                                batch_size=batch_size,
-                                                                num_parallel_batches=(threads / 2),
-                                                                num_parallel_calls=threads))
+    train_datasetA = train_datasetA.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=trainA_size))
+    train_datasetA = train_datasetB.apply(tf.contrib.data.map_and_batch(lambda x: load_image(x),
+                                                            batch_size=batch_size,
+                                                            num_parallel_batches=(threads / 2),
+                                                            num_parallel_calls=threads))
     train_datasetA = train_datasetA.prefetch(buffer_size=batch_size)
 
     train_datasetB = tf.data.Dataset.list_files(trainB_path + os.sep + "*.jpg", shuffle=False)
-    train_datasetB = train_datasetB.apply(tf.data.experimental.shuffle_and_repeat(buffer_size=trainB_size))
-    train_datasetB = train_datasetB.apply(tf.data.experimental.map_and_batch(lambda x: load_image(x),
-                                                                batch_size=batch_size,
-                                                                num_parallel_batches=(threads / 2),
-                                                                num_parallel_calls=threads))
+    train_datasetB = train_datasetB.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=trainB_size))
+    train_datasetB = train_datasetB.apply(tf.contrib.data.map_and_batch(lambda x: load_image(x),
+                                                            batch_size=batch_size,
+                                                            num_parallel_batches=(threads / 2),
+                                                            num_parallel_calls=threads))
     train_datasetB = train_datasetB.prefetch(buffer_size=batch_size)
 
     return train_datasetA, train_datasetB
