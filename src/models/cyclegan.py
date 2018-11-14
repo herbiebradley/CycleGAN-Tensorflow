@@ -19,7 +19,7 @@ trainA_path = os.path.join(project_dir, "data", "raw", "horse2zebra", "trainA")
 trainB_path = os.path.join(project_dir, "data", "raw", "horse2zebra", "trainB")
 trainA_size = len(os.listdir(trainA_path))
 trainB_size = len(os.listdir(trainB_path))
-batches_per_epoch = (trainA_size + trainB_size) / (2* batch_size) # Average dataset size / batch_size
+batches_per_epoch = int((trainA_size + trainB_size) / (2* batch_size)) # Average dataset size / batch_size
 
 """ Load Datasets"""
 
