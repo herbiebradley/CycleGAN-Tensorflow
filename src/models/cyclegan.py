@@ -14,7 +14,7 @@ learning_rate = 0.0002
 batch_size = 1 # Set batch size to 4 or 16 if training multigpu
 img_size = 256
 cyc_lambda = 10
-epochs = 5
+epochs = 20
 trainA_path = os.path.join(project_dir, "data", "raw", "horse2zebra", "trainA")
 trainB_path = os.path.join(project_dir, "data", "raw", "horse2zebra", "trainB")
 trainA_size = len(os.listdir(trainA_path))
@@ -382,7 +382,7 @@ def train(data, model, checkpoints, epochs, learning_rate=learning_rate, lsgan=T
 
             print("Training step: ", train_step)
             # saving (checkpoint) the model
-            if (epoch + 1) % 5 == 0:
+            if (epoch + 1) % 3 == 0:
                 checkpoint.save(file_prefix=checkpoint_prefix)
                 print("Checkpoint saved at ", checkpoint_prefix)
 
