@@ -391,7 +391,7 @@ def train(data, model, checkpoints, epochs, learning_rate=learning_rate, lsgan=T
 if __name__ == "__main__":
     checkpoint_dir = os.path.join(project_dir, "models", "checkpoints")
     with tf.device("/cpu:0"):
-        data = load_data(batch_size=batch_size, download=True)
+        data = load_data(batch_size=batch_size)
         model = define_model(learning_rate=learning_rate)
         checkpoints = define_checkpoint(checkpoint_dir, model)
     with tf.device("/gpu:0"):
