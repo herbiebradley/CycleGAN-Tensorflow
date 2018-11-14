@@ -14,7 +14,7 @@ learning_rate = 0.0002
 batch_size = 1 # Set batch size to 4 or 16 if training multigpu
 img_size = 256
 cyc_lambda = 10
-epochs = 20
+epochs = 5
 trainA_path = os.path.join(project_dir, "data", "raw", "horse2zebra", "trainA")
 trainB_path = os.path.join(project_dir, "data", "raw", "horse2zebra", "trainB")
 trainA_size = len(os.listdir(trainA_path))
@@ -319,6 +319,36 @@ def define_model(learning_rate, training=True): # Init only generators for testi
     optimizers = {"discA_opt":discA_opt, "discB_opt":discB_opt, "genA2B_opt":genA2B_opt, "genB2A_opt":genB2A_opt}
     return nets, optimizers
 
+def test(data, model, checkpoints):
+    nets, optimizers = model
+    discA = nets["discA"]
+    discB = nets["discB"]
+    genA2B = nets["genA2B"]
+    genB2A = nets["genB2A"]
+    discA_opt = optimizers["discA_opt"]
+    discB_opt = optimizers["discB_opt"]
+    genA2B_opt = optimizers["genA2B_opt"]
+    genB2A_opt = optimizers["genB2A_opt"]
+
+    checkpoint, checkpoint_dir, checkpoint_prefix = checkpoints
+    restore_from_checkpoint(checkpoint, checkpoint_dir)
+    test_datasetA, test_datasetB = iter(data[0]), iter(data[1])
+
+    for test_step in range(batches_per_epoch):
+        start = time.time()
+        try:
+            # Get next testing minibatches
+            testA = next(test_datasetA)
+            testB = next(test_datasetB)
+        except tf.errors.OutOfRangeError:
+            print("Error, run out of data")
+            break
+
+        genA2B_output = genA2B(testA, training=False)
+        genB2A_output = genB2A(testB, training=False)
+        generate_images(genB2A_output, genA2genA2B_output)
+
+
 def train(data, model, checkpoints, epochs, learning_rate=learning_rate, lsgan=True):
     nets, optimizers = model
     discA = nets["discA"]
@@ -380,11 +410,12 @@ def train(data, model, checkpoints, epochs, learning_rate=learning_rate, lsgan=T
             discB_opt.apply_gradients(zip(discB_gradients, discB.variables),
                                       global_step=tf.train.get_or_create_global_step())
 
-            #print("Training step: ", train_step)
+            if train_step % 100 == 0:
+                print("Training step: ", train_step)
             # saving (checkpoint) the model
-            if (epoch + 1) % 3 == 0:
-                checkpoint.save(file_prefix=checkpoint_prefix)
-                print("Checkpoint saved at ", checkpoint_prefix)
+            #if (epoch + 1) % 3 == 0:
+            checkpoint.save(file_prefix=checkpoint_prefix)
+            print("Checkpoint saved at ", checkpoint_prefix)
 
         print ("Time taken for epoch {} is {} sec\n".format(epoch + 1, time.time()-start))
 
