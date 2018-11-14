@@ -50,7 +50,7 @@ def load_data(batch_size=batch_size, download=False):
 
     train_datasetA = tf.data.Dataset.list_files(trainA_path + os.sep + "*.jpg", shuffle=False)
     train_datasetA = train_datasetA.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=trainA_size))
-    train_datasetA = train_datasetB.apply(tf.contrib.data.map_and_batch(lambda x: load_image(x),
+    train_datasetA = train_datasetA.apply(tf.contrib.data.map_and_batch(lambda x: load_image(x),
                                                             batch_size=batch_size,
                                                             num_parallel_batches=(threads / 2),
                                                             num_parallel_calls=threads))
