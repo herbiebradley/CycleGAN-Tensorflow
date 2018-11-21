@@ -366,7 +366,6 @@ def train(data, model, checkpoint_data, epochs, learning_rate=learning_rate, lsg
     train_datasetA, train_datasetB = iter(data[0]), iter(data[1])
     global_step = tf.train.get_or_create_global_step()
 
-
     for epoch in range(epochs):
         start = time.time()
         for train_step in range(batches_per_epoch):
