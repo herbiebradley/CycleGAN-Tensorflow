@@ -299,6 +299,7 @@ def restore_from_checkpoint(checkpoint, checkpoint_dir):
     if latest_checkpoint is not None:
         # Use assert_existing_objects_matched() instead of asset_consumed() here because
         # optimizers aren't initialized fully until first gradient update
+        # This will throw an exception if checkpoint does not restore the model weights
         restore_obj = checkpoint.restore(latest_checkpoint).assert_existing_objects_matched()
         print("Checkpoint restored from ", latest_checkpoint)
         # Uncomment below to print full list of checkpoint metadata
