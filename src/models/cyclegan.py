@@ -72,7 +72,6 @@ class Encoder(tf.keras.Model):
 
     def __init__(self):
         super(Encoder, self).__init__()
-
         # Small variance in initialization helps with preventing colour inversion.
         self.conv1 = tf.keras.layers.Conv2D(32, kernel_size=7, strides=1, kernel_initializer=tf.truncated_normal_initializer(stddev=0.02))
         self.conv2 = tf.keras.layers.Conv2D(64, kernel_size=3, strides=2, padding='same', kernel_initializer=tf.truncated_normal_initializer(stddev=0.02))
@@ -80,7 +79,6 @@ class Encoder(tf.keras.Model):
 
     def call(self, inputs, training=True):
         x = tf.pad(inputs, [[0, 0], [3, 3], [3, 3], [0, 0]], 'REFLECT')
-
         x = self.conv1(x)
         x = tf.contrib.layers.instance_norm(x, epsilon=1e-05, trainable=training)
         # Implement instance norm to more closely match orig. paper (momentum=0.1)?
@@ -106,13 +104,11 @@ class Residual(tf.keras.Model):
 
     def call(self, inputs, training=True):
         x = tf.pad(inputs, [[0, 0], [1, 1], [1, 1], [0, 0]], 'REFLECT')
-
         x = self.conv1(x)
         x = tf.contrib.layers.instance_norm(x, epsilon=1e-05, trainable=training)
         x = tf.nn.relu(x)
 
         x = tf.pad(x, [[0, 0], [1, 1], [1, 1], [0, 0]], 'REFLECT')
-
         x = self.conv2(x)
         x = tf.contrib.layers.instance_norm(x, epsilon=1e-05, trainable=training)
 
@@ -139,7 +135,6 @@ class Decoder(tf.keras.Model):
         x = tf.nn.relu(x)
 
         x = tf.pad(x, [[0, 0], [3, 3], [3, 3], [0, 0]], 'REFLECT')
-
         x = self.conv3(x)
         x = tf.contrib.layers.instance_norm(x, epsilon=1e-05, trainable=training)
         x = tf.nn.tanh(x)
@@ -153,7 +148,6 @@ class Generator(tf.keras.Model):
 
         self.img_size = img_size
         self.skip = skip #TODO: Add skip
-
         self.encoder = Encoder()
         if(img_size == 128):
             self.res1 = Residual()
@@ -201,13 +195,12 @@ class Discriminator(tf.keras.Model):
 
     def __init__(self):
         super(Discriminator, self).__init__()
-
+        # TODO: check padding here, should it be same?
         self.conv1 = tf.keras.layers.Conv2D(64, kernel_size=4, strides=2, padding='same', kernel_initializer=tf.truncated_normal_initializer(stddev=0.02))
         self.conv2 = tf.keras.layers.Conv2D(128, kernel_size=4, strides=2, padding='same', kernel_initializer=tf.truncated_normal_initializer(stddev=0.02))
         self.conv3 = tf.keras.layers.Conv2D(256, kernel_size=4, strides=2, padding='same', kernel_initializer=tf.truncated_normal_initializer(stddev=0.02))
         self.conv4 = tf.keras.layers.Conv2D(512, kernel_size=4, strides=1, padding='same', kernel_initializer=tf.truncated_normal_initializer(stddev=0.02))
         self.conv5 = tf.keras.layers.Conv2D(1, kernel_size=4, strides=1, padding='same', kernel_initializer=tf.truncated_normal_initializer(stddev=0.02))
-
         self.leaky = tf.keras.layers.LeakyReLU(0.2)
 
     @tf.contrib.eager.defun
@@ -228,13 +221,13 @@ class Discriminator(tf.keras.Model):
         x = self.leaky(x)
 
         x = self.conv5(x)
-        #x = tf.nn.sigmoid(x) # use_sigmoid = not lsgan
+        #x = tf.nn.sigmoid(x) # use_sigmoid = not use_lsgan
         return x
 
 """Define Loss functions"""
 
-def discriminator_loss(disc_of_real_output, disc_of_gen_output, lsgan=True):
-    if lsgan: # Use least squares loss
+def discriminator_loss(disc_of_real_output, disc_of_gen_output, use_lsgan=True):
+    if use_lsgan: # Use least squares loss
         real_loss = tf.reduce_mean(tf.squared_difference(disc_of_real_output, 1))
         generated_loss = tf.reduce_mean(tf.square(disc_of_gen_output))
 
@@ -248,8 +241,8 @@ def discriminator_loss(disc_of_real_output, disc_of_gen_output, lsgan=True):
 
     return total_disc_loss
 
-def generator_loss(disc_of_gen_output, lsgan=True):
-    if lsgan: # Use least squares loss
+def generator_loss(disc_of_gen_output, use_lsgan=True):
+    if use_lsgan: # Use least squares loss
         gen_loss = tf.reduce_mean(tf.squared_difference(disc_of_gen_output, 1))
 
     else: # Use vanilla GAN loss
@@ -349,7 +342,7 @@ def test(data, model, checkpoints):
         generate_images(genB2A_output, genA2B_output)
 
 
-def train(data, model, checkpoint_data, epochs, learning_rate=learning_rate, lsgan=True):
+def train(data, model, checkpoint_data, epochs, learning_rate=learning_rate, use_lsgan=True):
     nets, optimizers = model
     discA = nets['discA']
     discB = nets['discB']
@@ -391,11 +384,11 @@ def train(data, model, checkpoint_data, epochs, learning_rate=learning_rate, lsg
                 reconstructedA = genB2A(genA2B_output, training=True)
                 reconstructedB = genA2B(genB2A_output, training=True)
 
-                discA_loss = discriminator_loss(discA_real_output, discA_fake_output, lsgan=lsgan)
-                discB_loss = discriminator_loss(discB_real_output, discB_fake_output, lsgan=lsgan)
-                genA2B_loss = generator_loss(discB_fake_output, lsgan=lsgan) + \
+                discA_loss = discriminator_loss(discA_real_output, discA_fake_output)
+                discB_loss = discriminator_loss(discB_real_output, discB_fake_output)
+                genA2B_loss = generator_loss(discB_fake_output) + \
                               cycle_consistency_loss(trainA, trainB, reconstructedA, reconstructedB)
-                genB2A_loss = generator_loss(discA_fake_output, lsgan=lsgan) + \
+                genB2A_loss = generator_loss(discA_fake_output) + \
                               cycle_consistency_loss(trainA, trainB, reconstructedA, reconstructedB)
 
             discA_gradients = tape.gradient(discA_loss, discA.variables)
@@ -423,4 +416,4 @@ if __name__ == "__main__":
         model = define_model(learning_rate=learning_rate)
         checkpoint_data = define_checkpoint(checkpoint_dir, model)
     #with tf.device("/gpu:0"):
-        train(data, model, checkpoint_data, epochs=epochs, learning_rate=learning_rate, lsgan=True)
+        train(data, model, checkpoint_data, epochs=epochs, learning_rate=learning_rate)
