@@ -1,12 +1,17 @@
-import tensorflow as tf
-import numpy as np
-import matplotlib.pyplot as plt
-tf.enable_eager_execution()
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
 
 import os
 import time
 import multiprocessing
 import glob
+
+import tensorflow as tf
+import numpy as np
+import matplotlib.pyplot as plt
+from utils.image_history_buffer import ImageHistoryBuffer
+tf.enable_eager_execution()
 
 """Define Hyperparameters"""
 project_dir = os.path.abspath(os.path.join(os.getcwd(), os.pardir + os.sep + os.pardir))
@@ -19,11 +24,11 @@ trainA_path = os.path.join(project_dir, 'data', 'raw', 'horse2zebra', 'trainA')
 trainB_path = os.path.join(project_dir, 'data', 'raw', 'horse2zebra', 'trainB')
 trainA_size = len(os.listdir(trainA_path))
 trainB_size = len(os.listdir(trainB_path))
-batches_per_epoch = int((trainA_size + trainB_size) / (2 * batch_size)) # Average dataset size / batch_size
+batches_per_epoch = (trainA_size + trainB_size) // (2 * batch_size) # floor(Average dataset size / batch_size)
 
 """Load Datasets"""
 
-def load_image(image_file):
+def load_images(image_file):
     image = tf.read_file(image_file)
     image = tf.image.decode_jpeg(image, channels=3)
     image = tf.image.convert_image_dtype(image, tf.float32)
@@ -50,19 +55,30 @@ def load_data(batch_size=batch_size, download=False):
     trainB_size = len(os.listdir(trainB_path))
     threads = multiprocessing.cpu_count()
 
+    # Create Dataset from folder of string filenames.
     train_datasetA = tf.data.Dataset.list_files(trainA_path + os.sep + '*.jpg', shuffle=False)
+    # Infinitely loop the dataset, shuffling once per epoch (in memory).
+    # Safe to do when the dataset pipeline is currently string filenames.
+    # Fused operation is faster than separated shuffle and repeat.
+    # This is also serializable, so Dataset state can be saved with Checkpoints.
     train_datasetA = train_datasetA.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=trainA_size))
-    train_datasetA = train_datasetA.apply(tf.contrib.data.map_and_batch(lambda x: load_image(x),
+    # Decodes filenames into jpegs, then stacks them into batches.
+    # Throwing away the remainder allows the pipeline to report a fixed sized batch size,
+    # aiding in model definition downstream.
+    train_datasetA = train_datasetA.apply(tf.contrib.data.map_and_batch(lambda x: load_images(x),
                                                             batch_size=batch_size,
-                                                            num_parallel_calls=threads))
-    train_datasetA = train_datasetA.prefetch(buffer_size=batch_size)
+                                                            num_parallel_calls=threads,
+                                                            drop_remainder=True))
+    # Queue up a number of batches on CPU side
+    train_datasetA = train_datasetA.prefetch(buffer_size=threads)
 
     train_datasetB = tf.data.Dataset.list_files(trainB_path + os.sep + '*.jpg', shuffle=False)
     train_datasetB = train_datasetB.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=trainB_size))
-    train_datasetB = train_datasetB.apply(tf.contrib.data.map_and_batch(lambda x: load_image(x),
+    train_datasetB = train_datasetB.apply(tf.contrib.data.map_and_batch(lambda x: load_images(x),
                                                             batch_size=batch_size,
-                                                            num_parallel_calls=threads))
-    train_datasetB = train_datasetB.prefetch(buffer_size=batch_size)
+                                                            num_parallel_calls=threads,
+                                                            drop_remainder=True))
+    train_datasetB = train_datasetB.prefetch(buffer_size=threads)
 
     return train_datasetA, train_datasetB
 
@@ -355,16 +371,23 @@ def train(data, model, checkpoint_data, epochs, learning_rate=learning_rate, use
 
     checkpoint, checkpoint_dir = checkpoint_data
     checkpoint_prefix = os.path.join(checkpoint_dir, 'ckpt')
-    restore_from_checkpoint(checkpoint, checkpoint_dir)
+    restore_from_checkpoint(checkpoint, checkpoint_dir) # TODO: checkpoint datasets?
 
-    train_datasetA, train_datasetB = iter(data[0]), iter(data[1])
+    train_datasetA, train_datasetB = data
+    # Queue up batches asynchronously onto the GPU.
+    # As long as there is a pool of batches CPU side a GPU prefetch of 1 is fine.
+    #train_datasetA = train_datasetA.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
+    #train_datasetB = train_datasetB.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
+    # Create a tf.data.Iterator from the Datasets:
+    train_datasetA = iter(train_datasetA)
+    train_datasetB = iter(train_datasetB)
     global_step = tf.train.get_or_create_global_step()
 
     for epoch in range(epochs):
         start = time.time()
         for train_step in range(batches_per_epoch):
             try:
-                # Get next training minibatches
+                # Get next training batches
                 trainA = next(train_datasetA)
                 trainB = next(train_datasetB)
             except tf.errors.OutOfRangeError:
