@@ -434,6 +434,7 @@ def train(data, model, checkpoint_data, epochs, learning_rate=learning_rate, use
 
 if __name__ == "__main__":
     checkpoint_dir = os.path.join(project_dir, 'models', 'checkpoints')
+    testbuffer = ImageHistoryBuffer(50, 4, 256)
     with tf.device("/cpu:0"):
         data = load_data(batch_size=batch_size)
         model = define_model(learning_rate=learning_rate)
