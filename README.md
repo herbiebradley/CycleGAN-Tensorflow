@@ -3,6 +3,11 @@ CycleGAN-Tensorflow
 
 A Tensorflow implementation of [Unpaired Image-to-Image Translation using Cycle-Consistent Adversarial Networks](https://arxiv.org/abs/1703.10593) using Eager Execution, tf.keras.layers, and tf.data.
 
+Requirements:
+
+- Tensorflow 1.11.0
+- Python 3.6
+
 Project Organization
 ------------
 
