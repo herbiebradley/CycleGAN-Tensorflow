@@ -5,11 +5,12 @@ from __future__ import print_function
 import tensorflow as tf
 
 def discriminator_loss(disc_of_real_output, disc_of_gen_output, use_lsgan=True):
+    label_value = 1 # TODO: Implement proper label for smoothing
     if use_lsgan: # Use least squares loss
-        real_loss = tf.reduce_mean(tf.squared_difference(disc_of_real_output, 1))
+        real_loss = tf.reduce_mean(tf.squared_difference(disc_of_real_output, label_value))
         generated_loss = tf.reduce_mean(tf.square(disc_of_gen_output))
 
-        total_disc_loss = (real_loss + generated_loss) * 0.5 # 0.5 slows down rate that D learns compared to G
+        total_disc_loss = (real_loss + generated_loss) / 2 # / 2 slows down rate that D learns compared to G
 
     else: # Use vanilla GAN loss
         real_loss = tf.losses.sigmoid_cross_entropy(multi_class_labels = tf.ones_like(disc_of_real_output), logits = disc_of_real_output)
@@ -20,8 +21,9 @@ def discriminator_loss(disc_of_real_output, disc_of_gen_output, use_lsgan=True):
     return total_disc_loss
 
 def generator_loss(disc_of_gen_output, use_lsgan=True):
+    label_value = 1
     if use_lsgan: # Use least squares loss
-        gen_loss = tf.reduce_mean(tf.squared_difference(disc_of_gen_output, 1))
+        gen_loss = tf.reduce_mean(tf.squared_difference(disc_of_gen_output, label_value))
 
     else: # Use vanilla GAN loss
         gen_loss = tf.losses.sigmoid_cross_entropy(multi_class_labels = tf.ones_like(disc_generated_output), logits = disc_generated_output)

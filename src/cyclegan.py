@@ -10,6 +10,7 @@ import glob
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
+from models.losses import discriminator_loss, generator_loss, cycle_consistency_loss
 from models.networks import Generator, Discriminator
 from utils.image_history_buffer import ImageHistoryBuffer
 tf.enable_eager_execution()
@@ -75,8 +76,6 @@ def load_data(batch_size=batch_size, download=False):
     # Queue up batches asynchronously onto the GPU.
     # As long as there is a pool of batches CPU side a GPU prefetch of 1 is fine.
     #train_datasetA = train_datasetA.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
-    # Create a tf.data.Iterator from the Datasets:
-    train_datasetA = iter(train_datasetA)
 
     train_datasetB = tf.data.Dataset.list_files(trainB_path + os.sep + '*.jpg', shuffle=False)
     train_datasetB = train_datasetB.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=trainB_size))
@@ -86,7 +85,6 @@ def load_data(batch_size=batch_size, download=False):
                                                             drop_remainder=True))
     train_datasetB = train_datasetB.prefetch(buffer_size=threads)
     #train_datasetB = train_datasetB.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
-    train_datasetB = iter(train_datasetB)
 
     return train_datasetA, train_datasetB
 
@@ -104,7 +102,7 @@ def generate_images(fake_A, fake_B):
         plt.axis('off')
     plt.show()
 
-def define_checkpoint(checkpoint_dir, model, data):
+def define_checkpoint(checkpoint_dir, model):
     nets, optimizers = model
     discA = nets['discA']
     discB = nets['discB']
@@ -114,13 +112,11 @@ def define_checkpoint(checkpoint_dir, model, data):
     discB_opt = optimizers['discB_opt']
     genA2B_opt = optimizers['genA2B_opt']
     genB2A_opt = optimizers['genB2A_opt']
-    train_datasetA, train_datasetB = data
 
     step_counter = tf.train.get_or_create_global_step()
     checkpoint = tf.train.Checkpoint(discA=discA, discB=discB, genA2B=genA2B, genB2A=genB2A,
                                  discA_opt=discA_opt, discB_opt=discB_opt, genA2B_opt=genA2B_opt,
-                                 genB2A_opt=genB2A_opt, train_datasetA=train_datasetA,
-                                 train_datasetB=train_datasetB, optimizer_step=step_counter)
+                                 genB2A_opt=genB2A_opt, optimizer_step=step_counter)
     return checkpoint, checkpoint_dir
 
 def restore_from_checkpoint(checkpoint, checkpoint_dir):
@@ -188,14 +184,15 @@ def train(data, model, checkpoint_info, epochs, learning_rate=learning_rate, use
     discB_opt = optimizers['discB_opt']
     genA2B_opt = optimizers['genA2B_opt']
     genB2A_opt = optimizers['genB2A_opt']
-    train_datasetA, train_datasetB = data
 
     checkpoint, checkpoint_dir = checkpoint_info
     checkpoint_prefix = os.path.join(checkpoint_dir, 'ckpt')
     restore_from_checkpoint(checkpoint, checkpoint_dir)
 
-    discA_buffer = ImageHistoryBuffer(50, batch_size, img_size)
-    discB_buffer = ImageHistoryBuffer(50, batch_size, img_size)
+    # Create a tf.data.Iterator from the Datasets:
+    train_datasetA, train_datasetB = iter(data[0]), iter(data[1])
+    discA_buffer = ImageHistoryBuffer(50, batch_size, img_size//8) # // 8 for PatchGAN
+    discB_buffer = ImageHistoryBuffer(50, batch_size, img_size//8)
     global_step = tf.train.get_or_create_global_step()
 
     for epoch in range(epochs):
@@ -212,14 +209,12 @@ def train(data, model, checkpoint_info, epochs, learning_rate=learning_rate, use
 
                 genA2B_output = genA2B(trainA, training=True)
                 genB2A_output = genB2A(trainB, training=True)
-                print("GenA2B_output shape: ", genA2B_output.get_shape())
 
                 discA_real_output = discA(trainA, training=True)
                 discB_real_output = discB(trainB, training=True)
 
                 discA_fake_output = discA(genB2A_output, training=True)
                 discB_fake_output = discB(genA2B_output, training=True)
-                print("DiscB_fake_output shape: ", discB_fake_output.get_shape())
                 # Sample from history buffer of 50 images:
                 discA_fake_output = discA_buffer.query(discA_fake_output)
                 discB_fake_output = discB_buffer.query(discB_fake_output)

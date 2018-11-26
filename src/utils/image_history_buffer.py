@@ -24,7 +24,7 @@ class ImageHistoryBuffer(object):
     def __init__(self, max_buffer_size, batch_size, img_size):
         self.max_buffer_size = max_buffer_size
         self.batch_size = batch_size
-        self.image_history_buffer = tf.zeros(shape=[0, img_size, img_size, 3])
+        self.image_history_buffer = tf.zeros(shape=[0, img_size, img_size, 1])
         assert(self.batch_size >= 1)
 
     def query(self, image_batch):
