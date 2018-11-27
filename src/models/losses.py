@@ -10,7 +10,7 @@ def discriminator_loss(disc_of_real_output, disc_of_gen_output, use_lsgan=True):
         real_loss = tf.reduce_mean(tf.squared_difference(disc_of_real_output, label_value))
         generated_loss = tf.reduce_mean(tf.square(disc_of_gen_output))
 
-        total_disc_loss = (real_loss + generated_loss) / 2 # / 2 slows down rate that D learns compared to G
+        total_disc_loss = (real_loss + generated_loss) * 0.5 # * 0.5 slows down rate D learns compared to G
 
     else: # Use vanilla GAN loss
         real_loss = tf.losses.sigmoid_cross_entropy(multi_class_labels = tf.ones_like(disc_of_real_output), logits = disc_of_real_output)

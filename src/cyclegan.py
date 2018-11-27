@@ -10,14 +10,14 @@ import glob
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
-from models.losses import discriminator_loss, generator_loss, cycle_consistency_loss
+import utils
+import models.losses
 from models.networks import Generator, Discriminator
 from utils.image_history_buffer import ImageHistoryBuffer
 tf.enable_eager_execution()
 
-"""Define Hyperparameters"""
 project_dir = os.path.abspath(os.path.join(os.getcwd(), os.pardir))
-learning_rate = 0.0002 # TODO: DECAY!!!
+initial_learning_rate = 0.0002
 batch_size = 1 # Set batch size to 4 or 16 if training multigpu
 img_size = 256
 cyc_lambda = 10
@@ -27,8 +27,6 @@ trainB_path = os.path.join(project_dir, 'data', 'raw', 'horse2zebra', 'trainB')
 trainA_size = len(os.listdir(trainA_path))
 trainB_size = len(os.listdir(trainB_path))
 batches_per_epoch = (trainA_size + trainB_size) // (2 * batch_size) # floor(Average dataset size / batch_size)
-
-"""Load Datasets"""
 
 def load_images(image_file):
     image = tf.read_file(image_file)
@@ -60,13 +58,14 @@ def load_data(batch_size=batch_size, download=False):
     # Create Dataset from folder of string filenames.
     train_datasetA = tf.data.Dataset.list_files(trainA_path + os.sep + '*.jpg', shuffle=False)
     # Infinitely loop the dataset, shuffling once per epoch (in memory).
-    # Safe to do when the dataset pipeline is currently string filenames.
+    # Safe to do since the dataset pipeline is currently string filenames.
     # Fused operation is faster than separated shuffle and repeat.
-    # This is also serializable, so Dataset state can be saved with Checkpoints.
+    # This is also serializable, so Dataset state can be saved with Checkpoints,
+    # but doing this causes a segmentation fault for some reason...
     train_datasetA = train_datasetA.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=trainA_size))
     # Decodes filenames into jpegs, then stacks them into batches.
-    # Throwing away the remainder allows the pipeline to report a fixed sized batch size,
-    # aiding in model definition downstream.
+    # Throwing away the remainder allows the pipeline to report a fixed sized
+    # batch size, aiding in model definition downstream.
     train_datasetA = train_datasetA.apply(tf.contrib.data.map_and_batch(lambda x: load_images(x),
                                                             batch_size=batch_size,
                                                             num_parallel_calls=threads,
@@ -112,11 +111,14 @@ def define_checkpoint(checkpoint_dir, model):
     discB_opt = optimizers['discB_opt']
     genA2B_opt = optimizers['genA2B_opt']
     genB2A_opt = optimizers['genB2A_opt']
+    learning_rate = optimizers['learning_rate']
 
-    step_counter = tf.train.get_or_create_global_step()
-    checkpoint = tf.train.Checkpoint(discA=discA, discB=discB, genA2B=genA2B, genB2A=genB2A,
-                                 discA_opt=discA_opt, discB_opt=discB_opt, genA2B_opt=genA2B_opt,
-                                 genB2A_opt=genB2A_opt, optimizer_step=step_counter)
+    global_step = tf.train.get_or_create_global_step()
+    checkpoint = tf.train.Checkpoint(discA=discA, discB=discB, genA2B=genA2B,
+                                     genB2A=genB2A, discA_opt=discA_opt,
+                                     discB_opt=discB_opt, genA2B_opt=genA2B_opt,
+                                     genB2A_opt=genB2A_opt, learning_rate=learning_rate,
+                                     global_step=global_step)
     return checkpoint, checkpoint_dir
 
 def restore_from_checkpoint(checkpoint, checkpoint_dir):
@@ -132,7 +134,7 @@ def restore_from_checkpoint(checkpoint, checkpoint_dir):
     else:
         print("No checkpoint found, initializing model.")
 
-def define_model(learning_rate, training=True):
+def define_model(initial_learning_rate, training=True):
     if not training:
         genA2B = Generator(img_size=img_size)
         genB2A = Generator(img_size=img_size)
@@ -142,13 +144,15 @@ def define_model(learning_rate, training=True):
         discB = Discriminator()
         genA2B = Generator(img_size=img_size)
         genB2A = Generator(img_size=img_size)
+        learning_rate = tf.contrib.eager.Variable(initial_learning_rate, dtype=tf.float32, name='learning_rate')
         discA_opt = tf.train.AdamOptimizer(learning_rate, beta1=0.5)
         discB_opt = tf.train.AdamOptimizer(learning_rate, beta1=0.5)
         genA2B_opt = tf.train.AdamOptimizer(learning_rate, beta1=0.5)
         genB2A_opt = tf.train.AdamOptimizer(learning_rate, beta1=0.5)
 
         nets = {'discA':discA, 'discB':discB, 'genA2B':genA2B, 'genB2A':genB2A}
-        optimizers = {'discA_opt':discA_opt, 'discB_opt':discB_opt, 'genA2B_opt':genA2B_opt, 'genB2A_opt':genB2A_opt}
+        optimizers = {'discA_opt':discA_opt, 'discB_opt':discB_opt, 'genA2B_opt':genA2B_opt,
+                      'genB2A_opt':genB2A_opt, 'learning_rate':learning_rate}
         return nets, optimizers
 
 def test(data, model, checkpoint_info):
@@ -162,7 +166,7 @@ def test(data, model, checkpoint_info):
     for test_step in range(batches_per_epoch):
         start = time.time()
         try:
-            # Get next testing minibatches
+            # Get next testing batches:
             testA = next(test_datasetA)
             testB = next(test_datasetB)
         except tf.errors.OutOfRangeError:
@@ -174,7 +178,7 @@ def test(data, model, checkpoint_info):
         generate_images(genB2A_output, genA2B_output)
 
 
-def train(data, model, checkpoint_info, epochs, learning_rate=learning_rate, use_lsgan=True):
+def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_learning_rate):
     nets, optimizers = model
     discA = nets['discA']
     discB = nets['discB']
@@ -184,6 +188,7 @@ def train(data, model, checkpoint_info, epochs, learning_rate=learning_rate, use
     discB_opt = optimizers['discB_opt']
     genA2B_opt = optimizers['genA2B_opt']
     genB2A_opt = optimizers['genB2A_opt']
+    learning_rate = optimizers['learning_rate']
 
     checkpoint, checkpoint_dir = checkpoint_info
     checkpoint_prefix = os.path.join(checkpoint_dir, 'ckpt')
@@ -191,25 +196,25 @@ def train(data, model, checkpoint_info, epochs, learning_rate=learning_rate, use
 
     # Create a tf.data.Iterator from the Datasets:
     train_datasetA, train_datasetB = iter(data[0]), iter(data[1])
-    discA_buffer = ImageHistoryBuffer(50, batch_size, img_size//8) # // 8 for PatchGAN
-    discB_buffer = ImageHistoryBuffer(50, batch_size, img_size//8)
+    discA_buffer = ImageHistoryBuffer(50, batch_size, img_size / 8) # / 8 for PatchGAN
+    discB_buffer = ImageHistoryBuffer(50, batch_size, img_size / 8)
     global_step = tf.train.get_or_create_global_step()
 
     for epoch in range(epochs):
         start = time.time()
         for train_step in range(batches_per_epoch):
             try:
-                # Get next training batches
+                # Get next training batches:
                 trainA = next(train_datasetA)
                 trainB = next(train_datasetB)
             except tf.errors.OutOfRangeError:
                 print("Error, run out of data")
                 break
             with tf.GradientTape(persistent=True) as tape:
-
+                # Gen output shape: (batch_size, img_size, img_size, 3)
                 genA2B_output = genA2B(trainA, training=True)
                 genB2A_output = genB2A(trainB, training=True)
-
+                # Disc output shape: (batch_size, img_size/8, img_size/8, 1)
                 discA_real_output = discA(trainA, training=True)
                 discB_real_output = discB(trainB, training=True)
 
@@ -222,12 +227,12 @@ def train(data, model, checkpoint_info, epochs, learning_rate=learning_rate, use
                 reconstructedA = genB2A(genA2B_output, training=True)
                 reconstructedB = genA2B(genB2A_output, training=True)
 
-                discA_loss = discriminator_loss(discA_real_output, discA_fake_output)
-                discB_loss = discriminator_loss(discB_real_output, discB_fake_output)
-                genA2B_loss = generator_loss(discB_fake_output) + \
-                              cycle_consistency_loss(trainA, trainB, reconstructedA, reconstructedB)
-                genB2A_loss = generator_loss(discA_fake_output) + \
-                              cycle_consistency_loss(trainA, trainB, reconstructedA, reconstructedB)
+                discA_loss = models.losses.discriminator_loss(discA_real_output, discA_fake_output)
+                discB_loss = models.losses.discriminator_loss(discB_real_output, discB_fake_output)
+                genA2B_loss = models.losses.generator_loss(discB_fake_output) + \
+                              models.losses.cycle_consistency_loss(trainA, trainB, reconstructedA, reconstructedB)
+                genB2A_loss = models.losses.generator_loss(discA_fake_output) + \
+                              models.losses.cycle_consistency_loss(trainA, trainB, reconstructedA, reconstructedB)
 
             discA_gradients = tape.gradient(discA_loss, discA.variables)
             discB_gradients = tape.gradient(discB_loss, discB.variables)
@@ -240,9 +245,13 @@ def train(data, model, checkpoint_info, epochs, learning_rate=learning_rate, use
             genB2A_opt.apply_gradients(zip(genB2A_gradients, genB2A.variables), global_step=global_step)
 
             if train_step % 100 == 0:
-                print("Global Training Step: ", global_step.numpy())
+                # Here we do global step / 4 because there are 4 gradient updates per batch.
+                print("Global Training Step: ", global_step.numpy() // 4)
                 print("Epoch Training Step: ", train_step)
-        # Checkpoint the model
+        # Assign decayed learning rate:
+        learning_rate.assign(utils.get_learning_rate(initial_learning_rate, global_step, batches_per_epoch))
+        print("Learning rate in epoch {} is: {}".format(global_step.numpy() // batches_per_epoch, learning_rate.numpy()))
+        # Checkpoint the model:
         if (epoch + 1) % 3 == 0:
             checkpoint_path = checkpoint.save(file_prefix=checkpoint_prefix)
             print("Checkpoint saved at ", checkpoint_path)
@@ -253,6 +262,6 @@ if __name__ == "__main__":
     with tf.device("/cpu:0"): # Preprocess data on CPU for significant performance gains.
         data = load_data(batch_size=batch_size)
     #with tf.device("/gpu:0"):
-        model = define_model(learning_rate=learning_rate)
+        model = define_model(initial_learning_rate=initial_learning_rate)
         checkpoint_info = define_checkpoint(checkpoint_dir, model)
-        train(data, model, checkpoint_info, epochs=epochs, learning_rate=learning_rate)
+        train(data, model, checkpoint_info, epochs=epochs, initial_learning_rate=initial_learning_rate)
