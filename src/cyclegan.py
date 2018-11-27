@@ -239,10 +239,11 @@ def train(data, model, checkpoint_info, epochs, learning_rate=learning_rate, use
             genA2B_opt.apply_gradients(zip(genA2B_gradients, genA2B.variables), global_step=global_step)
             genB2A_opt.apply_gradients(zip(genB2A_gradients, genB2A.variables), global_step=global_step)
 
-            #if train_step % 100 == 0:
-            print("Training step: ", train_step)
+            if train_step % 100 == 0:
+                print("Global Training Step: ", global_step.numpy())
+                print("Epoch Training Step: ", train_step)
         # Checkpoint the model
-        #if (epoch + 1) % 3 == 0:
+        if (epoch + 1) % 3 == 0:
             checkpoint_path = checkpoint.save(file_prefix=checkpoint_prefix)
             print("Checkpoint saved at ", checkpoint_path)
         print ("Time taken for epoch {} is {} sec\n".format(epoch + 1, time.time()-start))
