@@ -35,24 +35,13 @@ def load_images(image_file):
     image = tf.image.decode_jpeg(image, channels=3)
     image = tf.image.convert_image_dtype(image, tf.float32)
     image = tf.image.resize_images(image, [img_size, img_size])
-    image = (image / 127.5) - 1 #Transform image to [-1, 1]
+    image = (image / 127.5) - 1 # Transform image to [-1, 1]
     return image
 
-def download_data(download_location):
-    path_to_zip = tf.keras.utils.get_file('horse2zebra.zip', cache_subdir=os.path.abspath(download_location),
-        origin='https://people.eecs.berkeley.edu/~taesung_park/CycleGAN/datasets/horse2zebra.zip',
-        extract=True)
-    os.remove(path_to_zip)
-
-def load_data(batch_size=batch_size, download=False):
-    raw_data = os.path.join(project_dir, 'data', 'raw')
-    if download:
-        download_data(download_location=raw_data)
-
-    path_to_dataset = os.path.join(raw_data, 'horse2zebra/')
+def load_train_data(dataset_id, batch_size=batch_size):
+    path_to_dataset = os.path.join(project_dir, 'data', 'raw', dataset_id + os.sep)
     trainA_path = os.path.join(path_to_dataset, 'trainA')
     trainB_path = os.path.join(path_to_dataset, 'trainB')
-
     trainA_size = len(os.listdir(trainA_path))
     trainB_size = len(os.listdir(trainB_path))
     threads = multiprocessing.cpu_count()
@@ -89,19 +78,40 @@ def load_data(batch_size=batch_size, download=False):
 
     return train_datasetA, train_datasetB
 
-def generate_images(fake_A, fake_B):
-    plt.figure(figsize=(15,15))
-    fake_A = tf.reshape(fake_A, [256, 256, 3])
-    fake_B = tf.reshape(fake_B, [256, 256, 3])
-    display_list = [fake_A, fake_B]
-    title = ["Generated A", "Generated B"]
-    for i in range(2):
-        plt.subplot(1, 2, i+1)
-        plt.title(title[i])
-        # getting the pixel values between [0, 1] to plot it.
-        plt.imshow(display_list[i] * 0.5 + 0.5)
-        plt.axis('off')
-    plt.show()
+def load_test_data(dataset_id):
+    path_to_dataset = os.path.join(project_dir, 'data', 'raw', dataset_id + os.sep)
+    testA_path = os.path.join(path_to_dataset, 'testA')
+    testB_path = os.path.join(path_to_dataset, 'testB')
+    testA_size = len(os.listdir(testA_path))
+    testB_size = len(os.listdir(testB_path))
+    threads = multiprocessing.cpu_count()
+
+    test_datasetA = tf.data.Dataset.list_files(testA_path + os.sep + '*.jpg', shuffle=False)
+    test_datasetA = test_datasetA.apply(tf.contrib.data.map_and_batch(lambda x: load_images(x),
+                                                            batch_size=1,
+                                                            num_parallel_calls=threads,
+                                                            drop_remainder=False))
+    test_datasetA = test_datasetA.prefetch(buffer_size=threads)
+    #test_datasetA = test_datasetA.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
+
+    test_datasetB = tf.data.Dataset.list_files(testB_path + os.sep + '*.jpg', shuffle=False)
+    test_datasetB = test_datasetB.apply(tf.contrib.data.map_and_batch(lambda x: load_images(x),
+                                                            batch_size=1,
+                                                            num_parallel_calls=threads,
+                                                            drop_remainder=False))
+    test_datasetB = test_datasetB.prefetch(buffer_size=threads)
+    #test_datasetB = test_datasetB.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
+
+    return test_datasetA, test_datasetB, testA_size, testB_size
+
+def save_images(image_to_save, save_dir, name_suffix):
+    save_file = os.path.join(save_dir,'test' + str(name_suffix))
+    image = tf.reshape(image_to_save, shape=[img_size, img_size, 3])
+    image = tf.image.convert_image_dtype(image, dtype=tf.uint8, saturate=True)
+    image_string = tf.image.encode_jpeg(image, quality=95, format='rgb')
+    tf.write_file(save_file, image_string)
+
+
 
 def define_checkpoint(checkpoint_dir, model):
     nets, optimizers = model
@@ -157,28 +167,42 @@ def define_model(initial_learning_rate, training=True):
                       'genB2A_opt':genB2A_opt, 'learning_rate':learning_rate}
         return nets, optimizers
 
-def test(data, model, checkpoint_info):
+def test(data, model, checkpoint_info, dataset_id, create_dir=False):
+    path_to_dataset = os.path.join(project_dir, 'data', 'raw', dataset_id + os.sep)
+    generatedA = os.path.join(path_to_dataset, 'generatedA' + os.sep)
+    generatedB = os.path.join(path_to_dataset, 'generatedB' + os.sep)
     genA2B = model['genA2B']
     genB2A = model['genB2A']
 
     checkpoint, checkpoint_dir = checkpoint_info
     restore_from_checkpoint(checkpoint, checkpoint_dir)
-    test_datasetA, test_datasetB = iter(data[0]), iter(data[1])
+    test_datasetA, test_datasetB, testA_size, testB_size = data
+    test_datasetA = iter(test_datasetA)
+    test_datasetB = iter(test_datasetB)
 
-    for test_step in range(batches_per_epoch):
+    for test_step in range(testB_size):
         start = time.time()
         try:
-            # Get next testing batches:
-            testA = next(test_datasetA)
+            # Get next testing image:
             testB = next(test_datasetB)
         except tf.errors.OutOfRangeError:
             print("Error, run out of data")
             break
-
-        genA2B_output = genA2B(testA, training=False)
         genB2A_output = genB2A(testB, training=False)
-        generate_images(genB2A_output, genA2B_output)
+        save_images(genB2A_output, generatedA, test_step)
+    print("Generating test A images finished in {} sec\n".format(time.time()-start))
 
+    for test_step in range(testA_size):
+        start = time.time()
+        try:
+            # Get next testing image:
+            testA = next(test_datasetA)
+        except tf.errors.OutOfRangeError:
+            print("Error, run out of data")
+            break
+        genA2B_output = genA2B(testA, training=False)
+        save_images(genA2B_output, generatedB,test_step)
+    print("Generating test B images finished in {} sec\n".format(time.time()-start))
 
 def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_learning_rate):
     nets, optimizers = model
@@ -287,7 +311,8 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
 if __name__ == "__main__":
     checkpoint_dir = os.path.join(project_dir, 'saved_models', 'checkpoints')
     with tf.device("/cpu:0"): # Preprocess data on CPU for significant performance gains.
-        data = load_data(batch_size=batch_size)
+        dataset_id = 'horse2zebra'
+        data = load_train_data(dataset_id, batch_size=batch_size)
     #with tf.device("/gpu:0"):
         model = define_model(initial_learning_rate=initial_learning_rate)
         checkpoint_info = define_checkpoint(checkpoint_dir, model)
