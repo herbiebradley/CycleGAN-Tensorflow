@@ -10,10 +10,12 @@ import glob
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
+
 import utils
-import models.losses
+from models.losses import generator_loss, discriminator_loss, cycle_consistency_loss
 from models.networks import Generator, Discriminator
 from utils.image_history_buffer import ImageHistoryBuffer
+
 tf.enable_eager_execution()
 
 project_dir = os.path.abspath(os.path.join(os.getcwd(), os.pardir))
