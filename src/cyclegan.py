@@ -234,7 +234,7 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
             start = time.time()
             for train_step in range(batches_per_epoch):
                 # Record summaries every 100 train_steps; there are 4 gradient updates per step.
-                with tf.contrib.summary.record_summaries_every_n_global_steps(1, global_step=global_step):
+                with tf.contrib.summary.record_summaries_every_n_global_steps(400, global_step=global_step):
                     try:
                         # Get next training batches:
                         trainA = next(train_datasetA)
@@ -282,30 +282,31 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
                     tf.contrib.summary.scalar('loss/discA', discA_loss)
                     tf.contrib.summary.scalar('loss/discB', discB_loss)
                     tf.contrib.summary.scalar('loss/cyc', cyc_loss)
+                    tf.contrib.summary.scalar('learning_rate', learning_rate)
 
-                    tf.contrib.summary.histogram('discA/real', discA_real)
-                    tf.contrib.summary.histogram('discA/fake', discA_fake)
-                    tf.contrib.summary.histogram('discB/real', discB_real)
-                    tf.contrib.summary.histogram('discB/fake', discA_fake)
+                    #tf.contrib.summary.histogram('discA/real', discA_real)
+                    #tf.contrib.summary.histogram('discA/fake', discA_fake)
+                    #tf.contrib.summary.histogram('discB/real', discB_real)
+                    #tf.contrib.summary.histogram('discB/fake', discA_fake)
 
-                    tf.contrib.summary.image('A/generated', genB2A_output)
-                    tf.contrib.summary.image('A/generated', reconstructedA)
-                    tf.contrib.summary.image('B/generated', genA2B_output)
-                    tf.contrib.summary.image('B/generated', reconstructedB)
+                    #tf.contrib.summary.image('A/generated', genB2A_output)
+                    #tf.contrib.summary.image('A/generated', reconstructedA)
+                    #tf.contrib.summary.image('B/generated', genA2B_output)
+                    #tf.contrib.summary.image('B/generated', reconstructedB)
 
                 if train_step % 100 == 0:
                     # Here we do global step / 4 because there are 4 gradient updates per batch.
                     print("Global Training Step: ", global_step.numpy() // 4)
-                    print("Epoch Training Step: ", train_step)
+                    print("Epoch Training Step: ", train_step + 1)
             # Assign decayed learning rate:
             learning_rate.assign(utils.get_learning_rate(initial_learning_rate, global_step,
                                                          batches_per_epoch))
             print("Learning rate in epoch {} is: {}".format(global_step.numpy() // batches_per_epoch,
                                                             learning_rate.numpy()))
             # Checkpoint the model:
-            if (epoch + 1) % 5 == 0:
-                checkpoint_path = checkpoint.save(file_prefix=checkpoint_prefix)
-                print("Checkpoint saved at ", checkpoint_path)
+            #if (epoch + 1) % 5 == 0:
+            checkpoint_path = checkpoint.save(file_prefix=checkpoint_prefix)
+            print("Checkpoint saved at ", checkpoint_path)
             print ("Time taken for epoch {} is {} sec\n".format(epoch + 1, time.time()-start))
 
 if __name__ == "__main__":

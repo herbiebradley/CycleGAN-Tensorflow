@@ -25,7 +25,7 @@ class ImageHistoryBuffer(object):
     def __init__(self, max_buffer_size, batch_size, img_size):
         self.max_buffer_size = max_buffer_size
         self.batch_size = batch_size
-        self.image_history_buffer = np.zeros((0, img_size, img_size, 3))
+        self.image_history_buffer = np.zeros((0, img_size, img_size,1))
         assert(self.batch_size >= 1)
 
     def query(self, image_batch):
@@ -36,7 +36,7 @@ class ImageHistoryBuffer(object):
             buffer or the original image.
 
         Args:
-            image_batch: Tensor of shape=(batch_size, img_size, img_size, 3).
+            image_batch: Tensor of shape=(batch_size, img_size/8, img_size/8, 1).
 
         Returns:
             Tensor: Processed batch.
