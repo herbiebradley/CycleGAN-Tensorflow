@@ -23,7 +23,7 @@ initial_learning_rate = 0.0002
 batch_size = 1 # Set batch size to 4 or 16 if training multigpu
 img_size = 256
 cyc_lambda = 10
-epochs = 2
+epochs = 35
 trainA_path = os.path.join(project_dir, 'data', 'raw', 'horse2zebra', 'trainA')
 trainB_path = os.path.join(project_dir, 'data', 'raw', 'horse2zebra', 'trainB')
 trainA_size = len(os.listdir(trainA_path))
@@ -230,84 +230,84 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
     #summary_writer = tf.contrib.summary.create_file_writer(log_dir)
 
     for epoch in range(epochs):
-        with summary_writer.as_default(), tf.contrib.summary.always_record_summaries():
-            start = time.time()
-            for train_step in range(batches_per_epoch):
-                # Record summaries every 100 train_steps; there are 4 gradient updates per step.
-                with tf.contrib.summary.record_summaries_every_n_global_steps(400, global_step=global_step):
-                    try:
-                        # Get next training batches:
-                        trainA = next(train_datasetA)
-                        trainB = next(train_datasetB)
-                    except tf.errors.OutOfRangeError:
-                        print("Error, run out of data")
-                        break
-                    with tf.GradientTape(persistent=True) as tape:
-                        # Gen output shape: (batch_size, img_size, img_size, 3)
-                        genA2B_output = genA2B(trainA, training=True)
-                        genB2A_output = genB2A(trainB, training=True)
-                        # Disc output shape: (batch_size, img_size/8, img_size/8, 1)
-                        discA_real = discA(trainA, training=True)
-                        discB_real = discB(trainB, training=True)
+        #with summary_writer.as_default(), tf.contrib.summary.always_record_summaries():
+        start = time.time()
+        for train_step in range(batches_per_epoch):
+            # Record summaries every 100 train_steps; there are 4 gradient updates per step.
+            #with tf.contrib.summary.record_summaries_every_n_global_steps(400, global_step=global_step):
+            try:
+                # Get next training batches:
+                trainA = next(train_datasetA)
+                trainB = next(train_datasetB)
+            except tf.errors.OutOfRangeError:
+                print("Error, run out of data")
+                break
+            with tf.GradientTape(persistent=True) as tape:
+                # Gen output shape: (batch_size, img_size, img_size, 3)
+                genA2B_output = genA2B(trainA, training=True)
+                genB2A_output = genB2A(trainB, training=True)
+                # Disc output shape: (batch_size, img_size/8, img_size/8, 1)
+                discA_real = discA(trainA, training=True)
+                discB_real = discB(trainB, training=True)
 
-                        discA_fake = discA(genB2A_output, training=True)
-                        discB_fake = discB(genA2B_output, training=True)
-                        # Sample from history buffer of 50 images:
-                        discA_fake_refined = discA_buffer.query(discA_fake)
-                        discB_fake_refined = discB_buffer.query(discB_fake)
+                discA_fake = discA(genB2A_output, training=True)
+                discB_fake = discB(genA2B_output, training=True)
+                # Sample from history buffer of 50 images:
+                discA_fake_refined = discA_buffer.query(discA_fake)
+                discB_fake_refined = discB_buffer.query(discB_fake)
 
-                        reconstructedA = genB2A(genA2B_output, training=True)
-                        reconstructedB = genA2B(genB2A_output, training=True)
+                reconstructedA = genB2A(genA2B_output, training=True)
+                reconstructedB = genA2B(genB2A_output, training=True)
 
-                        cyc_loss = cycle_consistency_loss(trainA, trainB, reconstructedA, reconstructedB)
-                        genA2B_loss = generator_loss(discB_fake_refined) + cyc_loss
-                        genB2A_loss = generator_loss(discA_fake_refined) + cyc_loss
-                        discA_loss = discriminator_loss(discA_real, discA_fake_refined)
-                        discB_loss = discriminator_loss(discB_real, discB_fake_refined)
+                cyc_loss = cycle_consistency_loss(trainA, trainB, reconstructedA, reconstructedB)
+                genA2B_loss = generator_loss(discB_fake_refined) + cyc_loss
+                genB2A_loss = generator_loss(discA_fake_refined) + cyc_loss
+                discA_loss = discriminator_loss(discA_real, discA_fake_refined)
+                discB_loss = discriminator_loss(discB_real, discB_fake_refined)
 
-                    discA_gradients = tape.gradient(discA_loss, discA.variables)
-                    discB_gradients = tape.gradient(discB_loss, discB.variables)
-                    genA2B_gradients = tape.gradient(genA2B_loss, genA2B.variables)
-                    genB2A_gradients = tape.gradient(genB2A_loss, genB2A.variables)
+            discA_gradients = tape.gradient(discA_loss, discA.variables)
+            discB_gradients = tape.gradient(discB_loss, discB.variables)
+            genA2B_gradients = tape.gradient(genA2B_loss, genA2B.variables)
+            genB2A_gradients = tape.gradient(genB2A_loss, genB2A.variables)
 
-                    discA_opt.apply_gradients(zip(discA_gradients, discA.variables), global_step=global_step)
-                    discB_opt.apply_gradients(zip(discB_gradients, discB.variables), global_step=global_step)
-                    genA2B_opt.apply_gradients(zip(genA2B_gradients, genA2B.variables), global_step=global_step)
-                    genB2A_opt.apply_gradients(zip(genB2A_gradients, genB2A.variables), global_step=global_step)
+            discA_opt.apply_gradients(zip(discA_gradients, discA.variables), global_step=global_step)
+            discB_opt.apply_gradients(zip(discB_gradients, discB.variables), global_step=global_step)
+            genA2B_opt.apply_gradients(zip(genA2B_gradients, genA2B.variables), global_step=global_step)
+            genB2A_opt.apply_gradients(zip(genB2A_gradients, genB2A.variables), global_step=global_step)
 
-                    # Summaries
-                    #tf.contrib.summary.scalar('train_step', global_step // 4)
-                    #tf.contrib.summary.scalar('loss/genA2B', genA2B_loss)
-                    #tf.contrib.summary.scalar('loss/genB2A', genB2A_loss)
-                    #tf.contrib.summary.scalar('loss/discA', discA_loss)
-                    #tf.contrib.summary.scalar('loss/discB', discB_loss)
-                    #tf.contrib.summary.scalar('loss/cyc', cyc_loss)
-                    #tf.contrib.summary.scalar('learning_rate', learning_rate)
+            # Summaries
+            #tf.contrib.summary.scalar('train_step', global_step // 4)
+            #tf.contrib.summary.scalar('loss/genA2B', genA2B_loss)
+            #tf.contrib.summary.scalar('loss/genB2A', genB2A_loss)
+            #tf.contrib.summary.scalar('loss/discA', discA_loss)
+            #tf.contrib.summary.scalar('loss/discB', discB_loss)
+            #tf.contrib.summary.scalar('loss/cyc', cyc_loss)
+            #tf.contrib.summary.scalar('learning_rate', learning_rate)
 
-                    #tf.contrib.summary.histogram('discA/real', discA_real)
-                    #tf.contrib.summary.histogram('discA/fake', discA_fake)
-                    #tf.contrib.summary.histogram('discB/real', discB_real)
-                    #tf.contrib.summary.histogram('discB/fake', discA_fake)
+            #tf.contrib.summary.histogram('discA/real', discA_real)
+            #tf.contrib.summary.histogram('discA/fake', discA_fake)
+            #tf.contrib.summary.histogram('discB/real', discB_real)
+            #tf.contrib.summary.histogram('discB/fake', discA_fake)
 
-                    #tf.contrib.summary.image('A/generated', genB2A_output)
-                    #tf.contrib.summary.image('A/generated', reconstructedA)
-                    #tf.contrib.summary.image('B/generated', genA2B_output)
-                    #tf.contrib.summary.image('B/generated', reconstructedB)
+            #tf.contrib.summary.image('A/generated', genB2A_output)
+            #tf.contrib.summary.image('A/generated', reconstructedA)
+            #tf.contrib.summary.image('B/generated', genA2B_output)
+            #tf.contrib.summary.image('B/generated', reconstructedB)
 
-                if train_step % 100 == 0:
-                    # Here we do global step / 4 because there are 4 gradient updates per batch.
-                    print("Global Training Step: ", global_step.numpy() // 4)
-                    print("Epoch Training Step: ", train_step + 1)
-            # Assign decayed learning rate:
-            learning_rate.assign(utils.get_learning_rate(initial_learning_rate, global_step,
-                                                         batches_per_epoch))
-            print("Learning rate in epoch {} is: {}".format(global_step.numpy() // batches_per_epoch,
-                                                            learning_rate.numpy()))
-            # Checkpoint the model:
-            if (epoch + 1) % 5 == 0:
-                checkpoint_path = checkpoint.save(file_prefix=checkpoint_prefix)
-                print("Checkpoint saved at ", checkpoint_path)
-            print ("Time taken for epoch {} is {} sec\n".format(epoch + 1, time.time()-start))
+            if train_step % 100 == 0:
+                # Here we do global step / 4 because there are 4 gradient updates per batch.
+                print("Global Training Step: ", global_step.numpy() // 4)
+                print("Epoch Training Step: ", train_step + 1)
+        # Assign decayed learning rate:
+        learning_rate.assign(utils.get_learning_rate(initial_learning_rate, global_step,
+                                                     batches_per_epoch))
+        print("Learning rate in epoch {} is: {}".format(global_step.numpy() // batches_per_epoch,
+                                                        learning_rate.numpy()))
+        # Checkpoint the model:
+        if (epoch + 1) % 5 == 0:
+            checkpoint_path = checkpoint.save(file_prefix=checkpoint_prefix)
+            print("Checkpoint saved at ", checkpoint_path)
+        print ("Time taken for epoch {} is {} sec\n".format(epoch + 1, time.time()-start))
 
 if __name__ == "__main__":
     checkpoint_dir = os.path.join(project_dir, 'saved_models', 'checkpoints')
