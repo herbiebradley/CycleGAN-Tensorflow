@@ -5,6 +5,7 @@ from __future__ import print_function
 import random
 
 import tensorflow as tf
+import numpy as np
 
 class ImageHistoryBuffer(object):
     """History of generated images.
@@ -24,7 +25,7 @@ class ImageHistoryBuffer(object):
     def __init__(self, max_buffer_size, batch_size, img_size):
         self.max_buffer_size = max_buffer_size
         self.batch_size = batch_size
-        self.image_history_buffer = tf.zeros(shape=[0, img_size, img_size, 1])
+        self.image_history_buffer = np.zeros(shape=(0, img_size, img_size, 3))
         assert(self.batch_size >= 1)
 
     def query(self, image_batch):
@@ -42,6 +43,7 @@ class ImageHistoryBuffer(object):
 
         """
 
+	image_batch = image_batch.numpy()
         self._add_to_image_history_buffer(image_batch)
         if self.batch_size > 1:
             image_batch[:self.batch_size // 2] = self._get_from_image_history_buffer()
@@ -49,8 +51,8 @@ class ImageHistoryBuffer(object):
             p = random.random()
             if p > 0.5:
                 random_image = self._get_from_image_history_buffer()
-                return random_image
-        return image_batch
+                return tf.convert_to_tensor(random_image, dtype=tf.float32)
+        return tf.convert_to_tensor(image_batch, dtype=tf.float32)
 
     def _add_to_image_history_buffer(self, image_batch):
         """Private method to add max(1, batch size / 2) images to buffer.
@@ -61,12 +63,12 @@ class ImageHistoryBuffer(object):
         """
         images_to_add = max(1, self.batch_size // 2)
 
-        if self.image_history_buffer.get_shape().as_list()[0] < self.max_buffer_size:
-            self.image_history_buffer = tf.concat([self.image_history_buffer, image_batch[:images_to_add]], axis=0)
+        if len(self.image_history_buffer) < self.max_buffer_size:
+            self.image_history_buffer = np.append(self.image_history_buffer, image_batch[:images_to_add], axis=0)
         else:
             self.image_history_buffer[:images_to_add] = image_batch[:images_to_add]
 
-        tf.random_shuffle(self.image_history_buffer)
+        np.random.shuffle(self.image_history_buffer))
 
     def _get_from_image_history_buffer(self):
         """Private method to get random images from buffer. The randomness is

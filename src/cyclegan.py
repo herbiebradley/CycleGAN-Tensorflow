@@ -23,7 +23,7 @@ initial_learning_rate = 0.0002
 batch_size = 1 # Set batch size to 4 or 16 if training multigpu
 img_size = 256
 cyc_lambda = 10
-epochs = 20
+epochs = 2
 trainA_path = os.path.join(project_dir, 'data', 'raw', 'horse2zebra', 'trainA')
 trainB_path = os.path.join(project_dir, 'data', 'raw', 'horse2zebra', 'trainB')
 trainA_size = len(os.listdir(trainA_path))
@@ -65,7 +65,7 @@ def load_train_data(dataset_id, batch_size=batch_size):
     train_datasetA = train_datasetA.prefetch(buffer_size=threads)
     # Queue up batches asynchronously onto the GPU.
     # As long as there is a pool of batches CPU side a GPU prefetch of 1 is fine.
-    #train_datasetA = train_datasetA.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
+    train_datasetA = train_datasetA.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
 
     train_datasetB = tf.data.Dataset.list_files(trainB_path + os.sep + '*.jpg', shuffle=False)
     train_datasetB = train_datasetB.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=trainB_size))
@@ -74,7 +74,7 @@ def load_train_data(dataset_id, batch_size=batch_size):
                                                             num_parallel_calls=threads,
                                                             drop_remainder=True))
     train_datasetB = train_datasetB.prefetch(buffer_size=threads)
-    #train_datasetB = train_datasetB.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
+    train_datasetB = train_datasetB.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
 
     return train_datasetA, train_datasetB
 
@@ -303,7 +303,7 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
             print("Learning rate in epoch {} is: {}".format(global_step.numpy() // batches_per_epoch,
                                                             learning_rate.numpy()))
             # Checkpoint the model:
-            if (epoch + 1) % 3 == 0:
+            if (epoch + 1) % 5 == 0:
                 checkpoint_path = checkpoint.save(file_prefix=checkpoint_prefix)
                 print("Checkpoint saved at ", checkpoint_path)
             print ("Time taken for epoch {} is {} sec\n".format(epoch + 1, time.time()-start))
@@ -313,7 +313,7 @@ if __name__ == "__main__":
     with tf.device("/cpu:0"): # Preprocess data on CPU for significant performance gains.
         dataset_id = 'horse2zebra'
         data = load_train_data(dataset_id, batch_size=batch_size)
-    #with tf.device("/gpu:0"):
+    with tf.device("/gpu:0"):
         model = define_model(initial_learning_rate=initial_learning_rate)
         checkpoint_info = define_checkpoint(checkpoint_dir, model)
         train(data, model, checkpoint_info, epochs=epochs, initial_learning_rate=initial_learning_rate)
