@@ -43,7 +43,7 @@ class ImageHistoryBuffer(object):
 
         """
 
-	image_batch = image_batch.numpy()
+        image_batch = image_batch.numpy()
         self._add_to_image_history_buffer(image_batch)
         if self.batch_size > 1:
             image_batch[:self.batch_size // 2] = self._get_from_image_history_buffer()
@@ -68,7 +68,7 @@ class ImageHistoryBuffer(object):
         else:
             self.image_history_buffer[:images_to_add] = image_batch[:images_to_add]
 
-        np.random.shuffle(self.image_history_buffer))
+        np.random.shuffle(self.image_history_buffer)
 
     def _get_from_image_history_buffer(self):
         """Private method to get random images from buffer. The randomness is
