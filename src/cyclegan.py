@@ -259,12 +259,11 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
                         reconstructedA = genB2A(genA2B_output, training=True)
                         reconstructedB = genA2B(genB2A_output, training=True)
 
+                        cyc_loss = cycle_consistency_loss(trainA, trainB, reconstructedA, reconstructedB)
+                        genA2B_loss = generator_loss(discB_fake_refined) + cyc_loss
+                        genB2A_loss = generator_loss(discA_fake_refined) + cyc_loss
                         discA_loss = discriminator_loss(discA_real, discA_fake_refined)
                         discB_loss = discriminator_loss(discB_real, discB_fake_refined)
-                        genA2B_loss = generator_loss(discB_fake_refined) + \
-                                      cycle_consistency_loss(trainA, trainB, reconstructedA, reconstructedB)
-                        genB2A_loss = generator_loss(discA_fake_refined) + \
-                                      cycle_consistency_loss(trainA, trainB, reconstructedA, reconstructedB)
 
                     discA_gradients = tape.gradient(discA_loss, discA.variables)
                     discB_gradients = tape.gradient(discB_loss, discB.variables)
@@ -282,6 +281,7 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
                     tf.contrib.summary.scalar('loss/genB2A', genB2A_loss)
                     tf.contrib.summary.scalar('loss/discA', discA_loss)
                     tf.contrib.summary.scalar('loss/discB', discB_loss)
+                    tf.contrib.summary.scalar('loss/cyc', cyc_loss)
 
                     tf.contrib.summary.histogram('discA/real', discA_real)
                     tf.contrib.summary.histogram('discA/fake', discA_fake)
