@@ -223,8 +223,8 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
 
     # Create a tf.data.Iterator from the Datasets:
     train_datasetA, train_datasetB = iter(data[0]), iter(data[1])
-    discA_buffer = ImageHistoryBuffer(50, batch_size, img_size / 8) # / 8 for PatchGAN
-    discB_buffer = ImageHistoryBuffer(50, batch_size, img_size / 8)
+    discA_buffer = ImageHistoryBuffer(50, batch_size, img_size // 8) # / 8 for PatchGAN
+    discB_buffer = ImageHistoryBuffer(50, batch_size, img_size // 8)
     global_step = tf.train.get_or_create_global_step()
     log_dir = os.path.join(project_dir, 'saved_models', 'tensorboard')
     summary_writer = tf.contrib.summary.create_file_writer(log_dir)
