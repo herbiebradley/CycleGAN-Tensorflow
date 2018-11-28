@@ -227,7 +227,7 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
     discB_buffer = ImageHistoryBuffer(50, batch_size, img_size // 8)
     global_step = tf.train.get_or_create_global_step()
     log_dir = os.path.join(project_dir, 'saved_models', 'tensorboard')
-    summary_writer = tf.contrib.summary.create_file_writer(log_dir)
+    #summary_writer = tf.contrib.summary.create_file_writer(log_dir)
 
     for epoch in range(epochs):
         with summary_writer.as_default(), tf.contrib.summary.always_record_summaries():
@@ -276,13 +276,13 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
                     genB2A_opt.apply_gradients(zip(genB2A_gradients, genB2A.variables), global_step=global_step)
 
                     # Summaries
-                    tf.contrib.summary.scalar('train_step', global_step // 4)
-                    tf.contrib.summary.scalar('loss/genA2B', genA2B_loss)
-                    tf.contrib.summary.scalar('loss/genB2A', genB2A_loss)
-                    tf.contrib.summary.scalar('loss/discA', discA_loss)
-                    tf.contrib.summary.scalar('loss/discB', discB_loss)
-                    tf.contrib.summary.scalar('loss/cyc', cyc_loss)
-                    tf.contrib.summary.scalar('learning_rate', learning_rate)
+                    #tf.contrib.summary.scalar('train_step', global_step // 4)
+                    #tf.contrib.summary.scalar('loss/genA2B', genA2B_loss)
+                    #tf.contrib.summary.scalar('loss/genB2A', genB2A_loss)
+                    #tf.contrib.summary.scalar('loss/discA', discA_loss)
+                    #tf.contrib.summary.scalar('loss/discB', discB_loss)
+                    #tf.contrib.summary.scalar('loss/cyc', cyc_loss)
+                    #tf.contrib.summary.scalar('learning_rate', learning_rate)
 
                     #tf.contrib.summary.histogram('discA/real', discA_real)
                     #tf.contrib.summary.histogram('discA/fake', discA_fake)
@@ -304,9 +304,9 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
             print("Learning rate in epoch {} is: {}".format(global_step.numpy() // batches_per_epoch,
                                                             learning_rate.numpy()))
             # Checkpoint the model:
-            #if (epoch + 1) % 5 == 0:
-            checkpoint_path = checkpoint.save(file_prefix=checkpoint_prefix)
-            print("Checkpoint saved at ", checkpoint_path)
+            if (epoch + 1) % 5 == 0:
+                checkpoint_path = checkpoint.save(file_prefix=checkpoint_prefix)
+                print("Checkpoint saved at ", checkpoint_path)
             print ("Time taken for epoch {} is {} sec\n".format(epoch + 1, time.time()-start))
 
 if __name__ == "__main__":
