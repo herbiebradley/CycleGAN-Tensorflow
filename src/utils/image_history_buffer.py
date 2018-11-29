@@ -19,7 +19,7 @@ class ImageHistoryBuffer(object):
             incoming images.
 
     Attributes:
-        image_history_buffer: Tensor of image batches used to calculate average loss.
+        image_history_buffer: Numpy array of image batches used to calculate average loss.
 
     """
     def __init__(self, max_buffer_size, batch_size, img_size):
@@ -33,7 +33,8 @@ class ImageHistoryBuffer(object):
             history buffer, then randomly replaces max(1, batch size / 2) images
             in the batch with images sampled from the buffer. If batch size is 1,
             then we flip a coin to decide if we return a random image from the
-            buffer or the original image.
+            buffer or the original image. The conversion to numpy array is done
+            because Tensorflow's random shuffle doesn't work on the GPU.
 
         Args:
             image_batch: Tensor of shape=(batch_size, img_size/8, img_size/8, 1).
@@ -58,7 +59,7 @@ class ImageHistoryBuffer(object):
         """Private method to add max(1, batch size / 2) images to buffer.
 
         Args:
-            image_batch (Tensor): Incoming image batch.
+            image_batch (ndarray): Incoming image batch.
 
         """
         images_to_add = max(1, self.batch_size // 2)

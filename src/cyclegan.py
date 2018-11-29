@@ -92,7 +92,7 @@ def load_test_data(dataset_id):
                                                             num_parallel_calls=threads,
                                                             drop_remainder=False))
     test_datasetA = test_datasetA.prefetch(buffer_size=threads)
-    #test_datasetA = test_datasetA.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
+    test_datasetA = test_datasetA.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
 
     test_datasetB = tf.data.Dataset.list_files(testB_path + os.sep + '*.jpg', shuffle=False)
     test_datasetB = test_datasetB.apply(tf.contrib.data.map_and_batch(lambda x: load_images(x),
@@ -100,7 +100,7 @@ def load_test_data(dataset_id):
                                                             num_parallel_calls=threads,
                                                             drop_remainder=False))
     test_datasetB = test_datasetB.prefetch(buffer_size=threads)
-    #test_datasetB = test_datasetB.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
+    test_datasetB = test_datasetB.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
 
     return test_datasetA, test_datasetB, testA_size, testB_size
 
@@ -111,26 +111,32 @@ def save_images(image_to_save, save_dir, name_suffix):
     image_string = tf.image.encode_jpeg(image, quality=95, format='rgb')
     tf.write_file(save_file, image_string)
 
+def define_checkpoint(checkpoint_dir, model, training=True):
+    if not training:
+        genA2B = model['genA2B']
+        genB2A = model['genB2A']
 
+        global_step = tf.train.get_or_create_global_step()
+        checkpoint = tf.train.Checkpoint(genA2B=genA2B, genB2A=genB2A,
+                                         global_step=global_step)
+    else:
+        nets, optimizers = model
+        discA = nets['discA']
+        discB = nets['discB']
+        genA2B = nets['genA2B']
+        genB2A = nets['genB2A']
+        discA_opt = optimizers['discA_opt']
+        discB_opt = optimizers['discB_opt']
+        genA2B_opt = optimizers['genA2B_opt']
+        genB2A_opt = optimizers['genB2A_opt']
+        learning_rate = optimizers['learning_rate']
 
-def define_checkpoint(checkpoint_dir, model):
-    nets, optimizers = model
-    discA = nets['discA']
-    discB = nets['discB']
-    genA2B = nets['genA2B']
-    genB2A = nets['genB2A']
-    discA_opt = optimizers['discA_opt']
-    discB_opt = optimizers['discB_opt']
-    genA2B_opt = optimizers['genA2B_opt']
-    genB2A_opt = optimizers['genB2A_opt']
-    learning_rate = optimizers['learning_rate']
-
-    global_step = tf.train.get_or_create_global_step()
-    checkpoint = tf.train.Checkpoint(discA=discA, discB=discB, genA2B=genA2B,
-                                     genB2A=genB2A, discA_opt=discA_opt,
-                                     discB_opt=discB_opt, genA2B_opt=genA2B_opt,
-                                     genB2A_opt=genB2A_opt, learning_rate=learning_rate,
-                                     global_step=global_step)
+        global_step = tf.train.get_or_create_global_step()
+        checkpoint = tf.train.Checkpoint(discA=discA, discB=discB, genA2B=genA2B,
+                                         genB2A=genB2A, discA_opt=discA_opt,
+                                         discB_opt=discB_opt, genA2B_opt=genA2B_opt,
+                                         genB2A_opt=genB2A_opt, learning_rate=learning_rate,
+                                         global_step=global_step)
     return checkpoint, checkpoint_dir
 
 def restore_from_checkpoint(checkpoint, checkpoint_dir):
@@ -139,7 +145,7 @@ def restore_from_checkpoint(checkpoint, checkpoint_dir):
         # Use assert_existing_objects_matched() instead of asset_consumed() here because
         # optimizers aren't initialized fully until first gradient update.
         # This will throw an exception if checkpoint does not restore the model weights.
-        restore_obj = checkpoint.restore(latest_checkpoint).assert_existing_objects_matched()
+        checkpoint.restore(latest_checkpoint).assert_existing_objects_matched()
         print("Checkpoint restored from ", latest_checkpoint)
         # Uncomment below to print full list of checkpoint metadata.
         #print(tf.contrib.checkpoint.object_metadata(latest_checkpoint))
@@ -230,7 +236,7 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
     #summary_writer = tf.contrib.summary.create_file_writer(log_dir)
 
     for epoch in range(epochs):
-        #with summary_writer.as_default(), tf.contrib.summary.always_record_summaries():
+        #with summary_writer.as_default():
         start = time.time()
         for train_step in range(batches_per_epoch):
             # Record summaries every 100 train_steps; there are 4 gradient updates per step.
@@ -313,8 +319,8 @@ if __name__ == "__main__":
     checkpoint_dir = os.path.join(project_dir, 'saved_models', 'checkpoints')
     with tf.device("/cpu:0"): # Preprocess data on CPU for significant performance gains.
         dataset_id = 'horse2zebra'
-        data = load_train_data(dataset_id, batch_size=batch_size)
+        data = load_test_data(dataset_id)
     with tf.device("/gpu:0"):
-        model = define_model(initial_learning_rate=initial_learning_rate)
-        checkpoint_info = define_checkpoint(checkpoint_dir, model)
-        train(data, model, checkpoint_info, epochs=epochs, initial_learning_rate=initial_learning_rate)
+        model = define_model(initial_learning_rate=initial_learning_rate, training=False)
+        checkpoint_info = define_checkpoint(checkpoint_dir, model, training=False)
+        test(data, model, checkpoint_info, dataset_id)
