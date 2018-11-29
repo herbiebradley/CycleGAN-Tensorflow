@@ -310,7 +310,7 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
         print("Learning rate in epoch {} is: {}".format(global_step.numpy() // batches_per_epoch,
                                                         learning_rate.numpy()))
         # Checkpoint the model:
-        if (epoch + 1) % 5 == 0:
+        if (epoch + 1) % 2 == 0:
             checkpoint_path = checkpoint.save(file_prefix=checkpoint_prefix)
             print("Checkpoint saved at ", checkpoint_path)
         print ("Time taken for epoch {} is {} sec\n".format(epoch + 1, time.time()-start))
