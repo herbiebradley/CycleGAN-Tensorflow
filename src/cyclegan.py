@@ -296,7 +296,7 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
             #tf.contrib.summary.histogram('discB/fake', discA_fake)
 
             #tf.contrib.summary.image('A/generated', genB2A_output)
-            #tf.contrib.summary.image('A/generated', reconstructedA)
+            #tf.contrib.summary.image('A/generated', reconstructedA)+-
             #tf.contrib.summary.image('B/generated', genA2B_output)
             #tf.contrib.summary.image('B/generated', reconstructedB)
 
@@ -317,10 +317,10 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
 
 if __name__ == "__main__":
     checkpoint_dir = os.path.join(project_dir, 'saved_models', 'checkpoints')
+    dataset_id = 'horse2zebra'
     with tf.device("/cpu:0"): # Preprocess data on CPU for significant performance gains.
-        dataset_id = 'horse2zebra'
-        data = load_test_data(dataset_id)
+        data = load_train_data(dataset_id)
     with tf.device("/gpu:0"):
         model = define_model(initial_learning_rate=initial_learning_rate, training=False)
         checkpoint_info = define_checkpoint(checkpoint_dir, model, training=False)
-        test(data, model, checkpoint_info, dataset_id)
+        train(data, model, checkpoint_info, epochs=epochs)
