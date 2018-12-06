@@ -23,7 +23,7 @@ initial_learning_rate = 0.0002
 batch_size = 1 # Set batch size to 4 or 16 if training multigpu
 img_size = 256
 cyc_lambda = 10
-epochs = 35
+epochs = 2
 trainA_path = os.path.join(project_dir, 'data', 'raw', 'horse2zebra', 'trainA')
 trainB_path = os.path.join(project_dir, 'data', 'raw', 'horse2zebra', 'trainB')
 trainA_size = len(os.listdir(trainA_path))
@@ -297,10 +297,10 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
                     #tf.contrib.summary.histogram('discB/real', discB_real)
                     #tf.contrib.summary.histogram('discB/fake', discA_fake)
 
-                    #tf.contrib.summary.image('A/generated', genB2A_output)
-                    #tf.contrib.summary.image('A/generated', reconstructedA)
-                    #tf.contrib.summary.image('B/generated', genA2B_output)
-                    #tf.contrib.summary.image('B/generated', reconstructedB)
+                    tf.contrib.summary.image('A/generated', genB2A_output)
+                    tf.contrib.summary.image('A/reconstructed', reconstructedA)
+                    tf.contrib.summary.image('B/generated', genA2B_output)
+                    tf.contrib.summary.image('B/reconstructed', reconstructedB)
 
                     if train_step % 100 == 0:
                         # Here we do global step / 4 because there are 4 gradient updates per batch.
@@ -312,7 +312,7 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
         print("Learning rate in total epoch {} is: {}".format(global_step.numpy() // (4 * batches_per_epoch),
                                                         learning_rate.numpy()))
         # Checkpoint the model:
-        if (epoch + 1) % 1 == 0:
+        if (epoch + 1) % 2 == 0:
             checkpoint_path = checkpoint.save(file_prefix=checkpoint_prefix)
             print("Checkpoint saved at ", checkpoint_path)
         print ("Time taken for local epoch {} is {} sec\n".format(epoch + 1, time.time()-start))
@@ -321,8 +321,8 @@ if __name__ == "__main__":
     checkpoint_dir = os.path.join(project_dir, 'saved_models', 'checkpoints')
     dataset_id = 'horse2zebra'
     with tf.device("/cpu:0"): # Preprocess data on CPU for significant performance gains.
-        data = load_test_data(dataset_id)
+        data = load_train_data(dataset_id)
     with tf.device("/gpu:0"):
-        model = define_model(initial_learning_rate=initial_learning_rate, training=False)
-        checkpoint_info = define_checkpoint(checkpoint_dir, model, training=False)
-        test(data, model, checkpoint_info)
+        model = define_model(initial_learning_rate=initial_learning_rate, training=True)
+        checkpoint_info = define_checkpoint(checkpoint_dir, model, training=True)
+        train(data, model, checkpoint_info, epochs=epochs)
