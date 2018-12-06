@@ -107,6 +107,7 @@ def load_test_data(dataset_id):
 def save_images(image_to_save, save_dir, image_index):
     save_file = os.path.join(save_dir,'test' + str(image_index) + ".jpeg")
     image = tf.reshape(image_to_save, shape=[img_size, img_size, 3])
+    image = (image + 1) * 127.5
     image = tf.image.convert_image_dtype(image, dtype=tf.uint8, saturate=True)
     image_string = tf.image.encode_jpeg(image, quality=95, format='rgb')
     tf.write_file(save_file, image_string)
@@ -298,6 +299,8 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
                     #tf.contrib.summary.histogram('discB/fake', discA_fake)
 
                     tf.contrib.summary.image('A/generated', genB2A_output)
+                    tf.contrib.summary.image('trainA', trainA)
+                    tf.contrib.summary.image('trainB', trainB)
                     tf.contrib.summary.image('A/reconstructed', reconstructedA)
                     tf.contrib.summary.image('B/generated', genA2B_output)
                     tf.contrib.summary.image('B/reconstructed', reconstructedB)
@@ -321,8 +324,8 @@ if __name__ == "__main__":
     checkpoint_dir = os.path.join(project_dir, 'saved_models', 'checkpoints')
     dataset_id = 'horse2zebra'
     with tf.device("/cpu:0"): # Preprocess data on CPU for significant performance gains.
-        data = load_train_data(dataset_id)
+        data = load_test_data(dataset_id)
     with tf.device("/gpu:0"):
-        model = define_model(initial_learning_rate=initial_learning_rate, training=True)
-        checkpoint_info = define_checkpoint(checkpoint_dir, model, training=True)
-        train(data, model, checkpoint_info, epochs=epochs)
+        model = define_model(initial_learning_rate=initial_learning_rate, training=False)
+        checkpoint_info = define_checkpoint(checkpoint_dir, model, training=False)
+        test(data, model, checkpoint_info, dataset_id)
