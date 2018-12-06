@@ -104,8 +104,8 @@ def load_test_data(dataset_id):
 
     return test_datasetA, test_datasetB, testA_size, testB_size
 
-def save_images(image_to_save, save_dir, name_suffix):
-    save_file = os.path.join(save_dir,'test' + str(name_suffix))
+def save_images(image_to_save, save_dir, image_index):
+    save_file = os.path.join(save_dir,'test' + str(image_index) + ".jpeg")
     image = tf.reshape(image_to_save, shape=[img_size, img_size, 3])
     image = tf.image.convert_image_dtype(image, dtype=tf.uint8, saturate=True)
     image_string = tf.image.encode_jpeg(image, quality=95, format='rgb')
@@ -186,7 +186,7 @@ def test(data, model, checkpoint_info, dataset_id, create_dir=False):
     test_datasetA = iter(test_datasetA)
     test_datasetB = iter(test_datasetB)
 
-    for test_step in range(testB_size):
+    for imageB in range(testB_size):
         start = time.time()
         try:
             # Get next testing image:
@@ -195,10 +195,11 @@ def test(data, model, checkpoint_info, dataset_id, create_dir=False):
             print("Error, run out of data")
             break
         genB2A_output = genB2A(testB, training=False)
-        save_images(genB2A_output, generatedA, test_step)
-    print("Generating test A images finished in {} sec\n".format(time.time()-start))
+        with tf.device("/cpu:0"):
+            save_images(genB2A_output, save_dir=generatedA, image_index=imageB)
+    print("Generating {} test A images finished in {} sec\n".format(testA_size, time.time()-start))
 
-    for test_step in range(testA_size):
+    for imageA in range(testA_size):
         start = time.time()
         try:
             # Get next testing image:
@@ -207,8 +208,9 @@ def test(data, model, checkpoint_info, dataset_id, create_dir=False):
             print("Error, run out of data")
             break
         genA2B_output = genA2B(testA, training=False)
-        save_images(genA2B_output, generatedB,test_step)
-    print("Generating test B images finished in {} sec\n".format(time.time()-start))
+        with tf.device("/cpu:0"):
+            save_images(genA2B_output, save_dir=generatedB, image_index=imageA)
+    print("Generating {} test B images finished in {} sec\n".format(testB_size, time.time()-start))
 
 def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_learning_rate):
     nets, optimizers = model
@@ -319,8 +321,8 @@ if __name__ == "__main__":
     checkpoint_dir = os.path.join(project_dir, 'saved_models', 'checkpoints')
     dataset_id = 'horse2zebra'
     with tf.device("/cpu:0"): # Preprocess data on CPU for significant performance gains.
-        data = load_train_data(dataset_id)
+        data = load_test_data(dataset_id)
     with tf.device("/gpu:0"):
-        model = define_model(initial_learning_rate=initial_learning_rate, training=True)
-        checkpoint_info = define_checkpoint(checkpoint_dir, model, training=True)
-        train(data, model, checkpoint_info, epochs=epochs)
+        model = define_model(initial_learning_rate=initial_learning_rate, training=False)
+        checkpoint_info = define_checkpoint(checkpoint_dir, model, training=False)
+        test(data, model, checkpoint_info)
