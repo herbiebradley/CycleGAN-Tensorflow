@@ -12,104 +12,30 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import utils
+import data
+from data import load_train_data, load_test_data
 from models.losses import generator_loss, discriminator_loss, cycle_consistency_loss
 from models.networks import Generator, Discriminator
 from utils.image_history_buffer import ImageHistoryBuffer
 
 tf.enable_eager_execution()
 
+"""Hyperparameters (TODO: Move to argparse)"""
 project_dir = os.path.abspath(os.path.join(os.getcwd(), os.pardir))
+dataset_id = 'horse2zebra'
 initial_learning_rate = 0.0002
 batch_size = 1 # Set batch size to 4 or 16 if training multigpu
 img_size = 256
 cyc_lambda = 10
 epochs = 2
-trainA_path = os.path.join(project_dir, 'data', 'raw', 'horse2zebra', 'trainA')
-trainB_path = os.path.join(project_dir, 'data', 'raw', 'horse2zebra', 'trainB')
-trainA_size = len(os.listdir(trainA_path))
-trainB_size = len(os.listdir(trainB_path))
-batches_per_epoch = (trainA_size + trainB_size) // (2 * batch_size) # floor(Average dataset size / batch_size)
-
-def load_images(image_file):
-    image = tf.read_file(image_file)
-    image = tf.image.decode_jpeg(image, channels=3)
-    image = tf.image.convert_image_dtype(image, tf.float32)
-    image = tf.image.resize_images(image, [img_size, img_size])
-    image = (image / 127.5) - 1 # Transform image to [-1, 1]
-    return image
-
-def load_train_data(dataset_id, batch_size=batch_size):
-    path_to_dataset = os.path.join(project_dir, 'data', 'raw', dataset_id + os.sep)
-    trainA_path = os.path.join(path_to_dataset, 'trainA')
-    trainB_path = os.path.join(path_to_dataset, 'trainB')
-    trainA_size = len(os.listdir(trainA_path))
-    trainB_size = len(os.listdir(trainB_path))
-    threads = multiprocessing.cpu_count()
-
-    # Create Dataset from folder of string filenames.
-    train_datasetA = tf.data.Dataset.list_files(trainA_path + os.sep + '*.jpg', shuffle=False)
-    # Infinitely loop the dataset, shuffling once per epoch (in memory).
-    # Safe to do since the dataset pipeline is currently string filenames.
-    # Fused operation is faster than separated shuffle and repeat.
-    # This is also serializable, so Dataset state can be saved with Checkpoints,
-    # but doing this causes a segmentation fault for some reason...
-    train_datasetA = train_datasetA.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=trainA_size))
-    # Decodes filenames into jpegs, then stacks them into batches.
-    # Throwing away the remainder allows the pipeline to report a fixed sized
-    # batch size, aiding in model definition downstream.
-    train_datasetA = train_datasetA.apply(tf.contrib.data.map_and_batch(lambda x: load_images(x),
-                                                            batch_size=batch_size,
-                                                            num_parallel_calls=threads,
-                                                            drop_remainder=True))
-    # Queue up a number of batches on CPU side
-    train_datasetA = train_datasetA.prefetch(buffer_size=threads)
-    # Queue up batches asynchronously onto the GPU.
-    # As long as there is a pool of batches CPU side a GPU prefetch of 1 is fine.
-    train_datasetA = train_datasetA.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
-
-    train_datasetB = tf.data.Dataset.list_files(trainB_path + os.sep + '*.jpg', shuffle=False)
-    train_datasetB = train_datasetB.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=trainB_size))
-    train_datasetB = train_datasetB.apply(tf.contrib.data.map_and_batch(lambda x: load_images(x),
-                                                            batch_size=batch_size,
-                                                            num_parallel_calls=threads,
-                                                            drop_remainder=True))
-    train_datasetB = train_datasetB.prefetch(buffer_size=threads)
-    train_datasetB = train_datasetB.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
-
-    return train_datasetA, train_datasetB
-
-def load_test_data(dataset_id):
-    path_to_dataset = os.path.join(project_dir, 'data', 'raw', dataset_id + os.sep)
-    testA_path = os.path.join(path_to_dataset, 'testA')
-    testB_path = os.path.join(path_to_dataset, 'testB')
-    testA_size = len(os.listdir(testA_path))
-    testB_size = len(os.listdir(testB_path))
-    threads = multiprocessing.cpu_count()
-
-    test_datasetA = tf.data.Dataset.list_files(testA_path + os.sep + '*.jpg', shuffle=False)
-    test_datasetA = test_datasetA.apply(tf.contrib.data.map_and_batch(lambda x: load_images(x),
-                                                            batch_size=1,
-                                                            num_parallel_calls=threads,
-                                                            drop_remainder=False))
-    test_datasetA = test_datasetA.prefetch(buffer_size=threads)
-    test_datasetA = test_datasetA.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
-
-    test_datasetB = tf.data.Dataset.list_files(testB_path + os.sep + '*.jpg', shuffle=False)
-    test_datasetB = test_datasetB.apply(tf.contrib.data.map_and_batch(lambda x: load_images(x),
-                                                            batch_size=1,
-                                                            num_parallel_calls=threads,
-                                                            drop_remainder=False))
-    test_datasetB = test_datasetB.prefetch(buffer_size=threads)
-    test_datasetB = test_datasetB.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
-
-    return test_datasetA, test_datasetB, testA_size, testB_size
+batches_per_epoch = data.get_batches_per_epoch(dataset_id, project_dir)
 
 def save_images(image_to_save, save_dir, image_index):
     save_file = os.path.join(save_dir,'test' + str(image_index) + ".jpeg")
     image = tf.reshape(image_to_save, shape=[img_size, img_size, 3])
-    image = (image + 1) * 127.5
+    image = (image + 1) * 127.5 # Rescale images to [0, 256]
     image = tf.image.convert_image_dtype(image, dtype=tf.uint8, saturate=True)
-    image_string = tf.image.encode_jpeg(image, quality=95, format='rgb')
+    image_string = tf.image.encode_jpeg(image, format='rgb', quality=95)
     tf.write_file(save_file, image_string)
 
 def define_checkpoint(checkpoint_dir, model, training=True):
@@ -174,7 +100,7 @@ def define_model(initial_learning_rate, training=True):
                       'genB2A_opt':genB2A_opt, 'learning_rate':learning_rate}
         return nets, optimizers
 
-def test(data, model, checkpoint_info, dataset_id, create_dir=False):
+def test(data, model, checkpoint_info, dataset_id):
     path_to_dataset = os.path.join(project_dir, 'data', 'raw', dataset_id + os.sep)
     generatedA = os.path.join(path_to_dataset, 'generatedA' + os.sep)
     generatedB = os.path.join(path_to_dataset, 'generatedB' + os.sep)
@@ -298,12 +224,12 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
                     #tf.contrib.summary.histogram('discB/real', discB_real)
                     #tf.contrib.summary.histogram('discB/fake', discA_fake)
 
-                    tf.contrib.summary.image('A/generated', genB2A_output)
-                    tf.contrib.summary.image('trainA', trainA)
-                    tf.contrib.summary.image('trainB', trainB)
-                    tf.contrib.summary.image('A/reconstructed', reconstructedA)
-                    tf.contrib.summary.image('B/generated', genA2B_output)
-                    tf.contrib.summary.image('B/reconstructed', reconstructedB)
+                    #tf.contrib.summary.image('A/generated', genB2A_output)
+                    #tf.contrib.summary.image('trainA', trainA)
+                    #tf.contrib.summary.image('trainB', trainB)
+                    #tf.contrib.summary.image('A/reconstructed', reconstructedA)
+                    #tf.contrib.summary.image('B/generated', genA2B_output)
+                    #tf.contrib.summary.image('B/reconstructed', reconstructedB)
 
                     if train_step % 100 == 0:
                         # Here we do global step / 4 because there are 4 gradient updates per batch.
@@ -322,7 +248,6 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
 
 if __name__ == "__main__":
     checkpoint_dir = os.path.join(project_dir, 'saved_models', 'checkpoints')
-    dataset_id = 'horse2zebra'
     with tf.device("/cpu:0"): # Preprocess data on CPU for significant performance gains.
         data = load_test_data(dataset_id)
     with tf.device("/gpu:0"):
