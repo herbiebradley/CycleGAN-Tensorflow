@@ -12,8 +12,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import utils
-import data
-from data import load_train_data, load_test_data
+import models
+from preprocessing.load_data import load_train_data, load_test_data, save_images
 from models.losses import generator_loss, discriminator_loss, cycle_consistency_loss
 from models.networks import Generator, Discriminator
 from utils.image_history_buffer import ImageHistoryBuffer
@@ -29,14 +29,6 @@ img_size = 256
 cyc_lambda = 10
 epochs = 2
 batches_per_epoch = data.get_batches_per_epoch(dataset_id, project_dir)
-
-def save_images(image_to_save, save_dir, image_index):
-    save_file = os.path.join(save_dir,'test' + str(image_index) + ".jpeg")
-    image = tf.reshape(image_to_save, shape=[img_size, img_size, 3])
-    image = (image + 1) * 127.5 # Rescale images to [0, 256]
-    image = tf.image.convert_image_dtype(image, dtype=tf.uint8, saturate=True)
-    image_string = tf.image.encode_jpeg(image, format='rgb', quality=95)
-    tf.write_file(save_file, image_string)
 
 def define_checkpoint(checkpoint_dir, model, training=True):
     if not training:
@@ -112,6 +104,7 @@ def test(data, model, checkpoint_info, dataset_id):
     test_datasetA, test_datasetB, testA_size, testB_size = data
     test_datasetA = iter(test_datasetA)
     test_datasetB = iter(test_datasetB)
+    testA = next(test_datasetA)
 
     for imageB in range(testB_size):
         start = time.time()
@@ -241,7 +234,7 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
         print("Learning rate in total epoch {} is: {}".format(global_step.numpy() // (4 * batches_per_epoch),
                                                         learning_rate.numpy()))
         # Checkpoint the model:
-        if (epoch + 1) % 2 == 0:
+        if (epoch + 1) % 1 == 0:
             checkpoint_path = checkpoint.save(file_prefix=checkpoint_prefix)
             print("Checkpoint saved at ", checkpoint_path)
         print ("Time taken for local epoch {} is {} sec\n".format(epoch + 1, time.time()-start))
@@ -249,8 +242,9 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
 if __name__ == "__main__":
     checkpoint_dir = os.path.join(project_dir, 'saved_models', 'checkpoints')
     with tf.device("/cpu:0"): # Preprocess data on CPU for significant performance gains.
-        data = load_test_data(dataset_id)
-    with tf.device("/gpu:0"):
-        model = define_model(initial_learning_rate=initial_learning_rate, training=False)
-        checkpoint_info = define_checkpoint(checkpoint_dir, model, training=False)
-        test(data, model, checkpoint_info, dataset_id)
+        data = load_test_data(dataset_id, project_dir)
+
+    #with tf.device("/gpu:0"):
+        #model = define_model(initial_learning_rate=initial_learning_rate, training=False)
+        #checkpoint_info = define_checkpoint(checkpoint_dir, model, training=False)
+        #test(data, model, checkpoint_info, dataset_id)

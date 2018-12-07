@@ -2,13 +2,13 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import argparse
 import os
+import argparse
 
 import tensorflow as tf
 
-def download_data(download_location, dataset_id):
-    path_to_zip = tf.keras.utils.get_file(datset_id + '.zip', cache_subdir=os.path.abspath(download_location),
+def download_data(dataset_id, download_location):
+    path_to_zip = tf.keras.utils.get_file(datset_id + '.zip', cache_subdir=download_location,
         origin='https://people.eecs.berkeley.edu/~taesung_park/CycleGAN/datasets/' + datset_id + '.zip',
         extract=True)
     os.remove(path_to_zip)
@@ -24,5 +24,5 @@ if __name__ == "__main__":
     FLAGS, unparsed = parser.parse_known_args()
     project_dir = os.path.abspath(os.path.join(os.getcwd(), os.pardir))
     raw_data = os.path.join(project_dir, 'data', 'raw')
-    download_data(download_location=raw_data, FLAGS.dataset_id)
+    download_data(FLAGS.dataset_id, download_location=raw_data)
     # Add code to check if dataset is already there.

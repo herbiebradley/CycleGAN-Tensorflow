@@ -6,14 +6,28 @@ import os
 import multiprocessing
 
 import tensorflow as tf
+from PIL import Image
 
-def load_images(image_file, img_size=256):
+def load_image(image_file, img_size=256):
+    # Read file into tensor of type string.
     image = tf.read_file(image_file)
+    # Decodes file into jpg of type uint8 (range [0, 255]).
     image = tf.image.decode_jpeg(image, channels=3)
+    # Convert to floating point with 32 bits (range [0, 1]).
     image = tf.image.convert_image_dtype(image, tf.float32)
-    image = tf.image.resize_images(image, [img_size, img_size])
-    image = (image / 127.5) - 1 # Transform image to [-1, 1]
+    # TODO: Replace with PIL
+    image = tf.image.resize_images(image, size=[img_size, img_size])
+    image = tf.image.per_image_standardization(image)
+    image = (image * 0.5) # Transform image to [-1, 1]
     return image
+
+def save_images(image_to_save, save_dir, image_index):
+    save_file = os.path.join(save_dir,'test' + str(image_index) + '.jpg')
+    image = tf.reshape(image_to_save, shape=[img_size, img_size, 3])
+    image = (image + 1) * 127.5 # Rescale images to [0, 255]
+    image = tf.image.convert_image_dtype(image, dtype=tf.uint8, saturate=True)
+    image_string = tf.image.encode_jpeg(image, format='rgb', quality=95)
+    tf.write_file(save_file, image_string)
 
 def load_train_data(dataset_id, project_dir, batch_size=1):
     path_to_dataset = os.path.join(project_dir, 'data', 'raw', dataset_id + os.sep)
@@ -34,7 +48,7 @@ def load_train_data(dataset_id, project_dir, batch_size=1):
     # Decodes filenames into jpegs, then stacks them into batches.
     # Throwing away the remainder allows the pipeline to report a fixed sized
     # batch size, aiding in model definition downstream.
-    train_datasetA = train_datasetA.apply(tf.contrib.data.map_and_batch(lambda x: load_images(x),
+    train_datasetA = train_datasetA.apply(tf.contrib.data.map_and_batch(lambda x: load_image(x),
                                                             batch_size=batch_size,
                                                             num_parallel_calls=threads,
                                                             drop_remainder=True))
@@ -47,7 +61,7 @@ def load_train_data(dataset_id, project_dir, batch_size=1):
 
     train_datasetB = tf.data.Dataset.list_files(trainB_path + os.sep + '*.jpg', shuffle=False)
     train_datasetB = train_datasetB.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=trainB_size))
-    train_datasetB = train_datasetB.apply(tf.contrib.data.map_and_batch(lambda x: load_images(x),
+    train_datasetB = train_datasetB.apply(tf.contrib.data.map_and_batch(lambda x: load_image(x),
                                                             batch_size=batch_size,
                                                             num_parallel_calls=threads,
                                                             drop_remainder=True))
@@ -56,7 +70,7 @@ def load_train_data(dataset_id, project_dir, batch_size=1):
 
     return train_datasetA, train_datasetB
 
-def load_test_data(dataset_id):
+def load_test_data(dataset_id, project_dir):
     path_to_dataset = os.path.join(project_dir, 'data', 'raw', dataset_id + os.sep)
     testA_path = os.path.join(path_to_dataset, 'testA')
     testB_path = os.path.join(path_to_dataset, 'testB')
@@ -65,19 +79,26 @@ def load_test_data(dataset_id):
     threads = multiprocessing.cpu_count()
 
     test_datasetA = tf.data.Dataset.list_files(testA_path + os.sep + '*.jpg', shuffle=False)
-    test_datasetA = test_datasetA.apply(tf.contrib.data.map_and_batch(lambda x: load_images(x),
+    test_datasetA = test_datasetA.apply(tf.contrib.data.map_and_batch(lambda x: load_image(x),
                                                             batch_size=1,
                                                             num_parallel_calls=threads,
                                                             drop_remainder=False))
-    test_datasetA = test_datasetA.prefetch(buffer_size=threads)
-    test_datasetA = test_datasetA.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
+    #test_datasetA = test_datasetA.prefetch(buffer_size=threads)
+    #test_datasetA = test_datasetA.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
 
     test_datasetB = tf.data.Dataset.list_files(testB_path + os.sep + '*.jpg', shuffle=False)
-    test_datasetB = test_datasetB.apply(tf.contrib.data.map_and_batch(lambda x: load_images(x),
+    test_datasetB = test_datasetB.apply(tf.contrib.data.map_and_batch(lambda x: load_image(x),
                                                             batch_size=1,
                                                             num_parallel_calls=threads,
                                                             drop_remainder=False))
-    test_datasetB = test_datasetB.prefetch(buffer_size=threads)
-    test_datasetB = test_datasetB.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
+    #test_datasetB = test_datasetB.prefetch(buffer_size=threads)
+    #test_datasetB = test_datasetB.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
+
+    test_datasetA = iter(test_datasetB)
+    testA = next(test_datasetA)
+    print("A Max: ", tf.reduce_max(testA))
+    print("A Min: ", tf.reduce_min(testA))
+    print("A Mean: ", tf.reduce_mean(testA))
+    print(testA)
 
     return test_datasetA, test_datasetB, testA_size, testB_size
