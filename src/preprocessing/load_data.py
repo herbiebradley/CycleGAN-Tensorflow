@@ -6,29 +6,34 @@ import os
 import multiprocessing
 
 import tensorflow as tf
-from PIL import Image
 
 def load_image(image_file, img_size=256):
     # Read file into tensor of type string.
-    image = tf.read_file(image_file)
+    image_string = tf.read_file(image_file)
     # Decodes file into jpg of type uint8 (range [0, 255]).
-    image = tf.image.decode_jpeg(image, channels=3)
+    image = tf.image.decode_jpeg(image_string, channels=3)
     # Convert to floating point with 32 bits (range [0, 1]).
     image = tf.image.convert_image_dtype(image, tf.float32)
-    # TODO: Replace with PIL
-    image = tf.image.resize_images(image, size=[img_size, img_size])
-    image = tf.image.per_image_standardization(image)
-    image = (image * 0.5) # Transform image to [-1, 1]
-    return image
+    # Resize with bicubic interpolation, making sure that corner pixel values
+    # are preserved.
+    image = tf.image.resize_images(image, size=[img_size, img_size],
+                                   method=tf.image.ResizeMethod.BICUBIC, align_corners=True)
+    # Transform image to [-1, 1] from [0, 1].
+    return (image - 0.5) * 2
 
-def save_images(image_to_save, save_dir, image_index):
+def save_images(image_to_save, save_dir, image_index, img_size=256):
     save_file = os.path.join(save_dir,'test' + str(image_index) + '.jpg')
+    # Reshape to get rid of batch size dimension in the tensor.
     image = tf.reshape(image_to_save, shape=[img_size, img_size, 3])
-    image = (image + 1) * 127.5 # Rescale images to [0, 255]
+    # Scale from [-1, 1] to [0, 1).
+    image = (image * 0.5) + 0.5
+    # Convert to uint8 (range [0, 255]), saturate to avoid possible under/overflow.
     image = tf.image.convert_image_dtype(image, dtype=tf.uint8, saturate=True)
+    # JPEG encode image into string Tensor.
     image_string = tf.image.encode_jpeg(image, format='rgb', quality=95)
-    tf.write_file(save_file, image_string)
+    tf.write_file(filename=save_file, contents=image_string)
 
+# TODO: Refactor into class
 def load_train_data(dataset_id, project_dir, batch_size=1):
     path_to_dataset = os.path.join(project_dir, 'data', 'raw', dataset_id + os.sep)
     trainA_path = os.path.join(path_to_dataset, 'trainA')
@@ -83,22 +88,15 @@ def load_test_data(dataset_id, project_dir):
                                                             batch_size=1,
                                                             num_parallel_calls=threads,
                                                             drop_remainder=False))
-    #test_datasetA = test_datasetA.prefetch(buffer_size=threads)
-    #test_datasetA = test_datasetA.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
+    test_datasetA = test_datasetA.prefetch(buffer_size=threads)
+    test_datasetA = test_datasetA.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
 
     test_datasetB = tf.data.Dataset.list_files(testB_path + os.sep + '*.jpg', shuffle=False)
     test_datasetB = test_datasetB.apply(tf.contrib.data.map_and_batch(lambda x: load_image(x),
                                                             batch_size=1,
                                                             num_parallel_calls=threads,
                                                             drop_remainder=False))
-    #test_datasetB = test_datasetB.prefetch(buffer_size=threads)
-    #test_datasetB = test_datasetB.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
-
-    test_datasetA = iter(test_datasetB)
-    testA = next(test_datasetA)
-    print("A Max: ", tf.reduce_max(testA))
-    print("A Min: ", tf.reduce_min(testA))
-    print("A Mean: ", tf.reduce_mean(testA))
-    print(testA)
+    test_datasetB = test_datasetB.prefetch(buffer_size=threads)
+    test_datasetB = test_datasetB.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
 
     return test_datasetA, test_datasetB, testA_size, testB_size

@@ -11,7 +11,6 @@ import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
 
-import utils
 import models
 from preprocessing.load_data import load_train_data, load_test_data, save_images
 from models.losses import generator_loss, discriminator_loss, cycle_consistency_loss
@@ -28,7 +27,7 @@ batch_size = 1 # Set batch size to 4 or 16 if training multigpu
 img_size = 256
 cyc_lambda = 10
 epochs = 2
-batches_per_epoch = data.get_batches_per_epoch(dataset_id, project_dir)
+batches_per_epoch = models.get_batches_per_epoch(dataset_id, project_dir)
 
 def define_checkpoint(checkpoint_dir, model, training=True):
     if not training:
@@ -104,7 +103,6 @@ def test(data, model, checkpoint_info, dataset_id):
     test_datasetA, test_datasetB, testA_size, testB_size = data
     test_datasetA = iter(test_datasetA)
     test_datasetB = iter(test_datasetB)
-    testA = next(test_datasetA)
 
     for imageB in range(testB_size):
         start = time.time()
@@ -204,37 +202,33 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
                     genB2A_opt.apply_gradients(zip(genB2A_gradients, genB2A.variables), global_step=global_step)
 
                     # Summaries
-                    #tf.contrib.summary.scalar('train_step', global_step // 4)
                     tf.contrib.summary.scalar('loss/genA2B', genA2B_loss)
                     tf.contrib.summary.scalar('loss/genB2A', genB2A_loss)
                     tf.contrib.summary.scalar('loss/discA', discA_loss)
                     tf.contrib.summary.scalar('loss/discB', discB_loss)
                     tf.contrib.summary.scalar('loss/cyc', cyc_loss)
-                    #tf.contrib.summary.scalar('learning_rate', learning_rate)
+                    tf.contrib.summary.scalar('learning_rate', learning_rate)
 
-                    #tf.contrib.summary.histogram('discA/real', discA_real)
-                    #tf.contrib.summary.histogram('discA/fake', discA_fake)
-                    #tf.contrib.summary.histogram('discB/real', discB_real)
-                    #tf.contrib.summary.histogram('discB/fake', discA_fake)
-
-                    #tf.contrib.summary.image('A/generated', genB2A_output)
-                    #tf.contrib.summary.image('trainA', trainA)
-                    #tf.contrib.summary.image('trainB', trainB)
-                    #tf.contrib.summary.image('A/reconstructed', reconstructedA)
-                    #tf.contrib.summary.image('B/generated', genA2B_output)
-                    #tf.contrib.summary.image('B/reconstructed', reconstructedB)
+                    tf.contrib.summary.histogram('discA/real', discA_real)
+                    tf.contrib.summary.histogram('discA/fake', discA_fake)
+                    tf.contrib.summary.histogram('discB/real', discB_real)
+                    tf.contrib.summary.histogram('discB/fake', discA_fake)
+                    # Transform images from [-1, 1] to [0, 1) for Tensorboard.
+                    tf.contrib.summary.image('A/generated', (genB2A_output * 0.5) + 0.5)
+                    tf.contrib.summary.image('A/reconstructed', (reconstructedA * 0.5) + 0.5)
+                    tf.contrib.summary.image('B/generated', (genA2B_output * 0.5) + 0.5)
+                    tf.contrib.summary.image('B/reconstructed', (reconstructedB * 0.5) + 0.5)
 
                     if train_step % 100 == 0:
                         # Here we do global step / 4 because there are 4 gradient updates per batch.
                         print("Global Training Step: ", global_step.numpy() // 4)
                         print("Epoch Training Step: ", train_step + 1)
         # Assign decayed learning rate:
-        learning_rate.assign(utils.get_learning_rate(initial_learning_rate, global_step,
-                                                     batches_per_epoch))
+        learning_rate.assign(models.get_learning_rate(initial_learning_rate, global_step, batches_per_epoch))
         print("Learning rate in total epoch {} is: {}".format(global_step.numpy() // (4 * batches_per_epoch),
-                                                        learning_rate.numpy()))
+                                                            learning_rate.numpy()))
         # Checkpoint the model:
-        if (epoch + 1) % 1 == 0:
+        if (epoch + 1) % 2 == 0:
             checkpoint_path = checkpoint.save(file_prefix=checkpoint_prefix)
             print("Checkpoint saved at ", checkpoint_path)
         print ("Time taken for local epoch {} is {} sec\n".format(epoch + 1, time.time()-start))
@@ -244,7 +238,7 @@ if __name__ == "__main__":
     with tf.device("/cpu:0"): # Preprocess data on CPU for significant performance gains.
         data = load_test_data(dataset_id, project_dir)
 
-    #with tf.device("/gpu:0"):
-        #model = define_model(initial_learning_rate=initial_learning_rate, training=False)
-        #checkpoint_info = define_checkpoint(checkpoint_dir, model, training=False)
-        #test(data, model, checkpoint_info, dataset_id)
+    with tf.device("/gpu:0"):
+        model = define_model(initial_learning_rate=initial_learning_rate, training=False)
+        checkpoint_info = define_checkpoint(checkpoint_dir, model, training=False)
+        test(data, model, checkpoint_info, dataset_id)
