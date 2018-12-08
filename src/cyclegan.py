@@ -238,4 +238,4 @@ if __name__ == "__main__":
     with tf.device("/gpu:0"):
         model = define_model(initial_learning_rate=initial_learning_rate, training=True)
         checkpoint_info = define_checkpoint(checkpoint_dir, model, training=True)
-        train(data, model, checkpoint_info, dataset_id)
+        train(data, model, checkpoint_info, epochs=epochs)
