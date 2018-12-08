@@ -19,7 +19,8 @@ def load_image(image_file, img_size=256):
     image = tf.image.resize_images(image, size=[img_size, img_size],
                                    method=tf.image.ResizeMethod.BICUBIC, align_corners=True)
     # Transform image to [-1, 1] from [0, 1].
-    return (image - 0.5) * 2
+    image = (image - 0.5) * 2
+    return image
 
 def save_images(image_to_save, save_dir, image_index, img_size=256):
     save_file = os.path.join(save_dir,'test' + str(image_index) + '.jpg')

@@ -108,7 +108,7 @@ def test(data, model, checkpoint_info, dataset_id):
         start = time.time()
         try:
             # Get next testing image:
-            testB = next(test_datasetB)
+            testB = test_datasetB.get_next()
         except tf.errors.OutOfRangeError:
             print("Error, run out of data")
             break
@@ -121,7 +121,7 @@ def test(data, model, checkpoint_info, dataset_id):
         start = time.time()
         try:
             # Get next testing image:
-            testA = next(test_datasetA)
+            testA = test_datasetA.get_next()
         except tf.errors.OutOfRangeError:
             print("Error, run out of data")
             break
@@ -141,20 +141,20 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
     genA2B_opt = optimizers['genA2B_opt']
     genB2A_opt = optimizers['genB2A_opt']
     learning_rate = optimizers['learning_rate']
-
+    # Restore latest checkpoint:
     checkpoint, checkpoint_dir = checkpoint_info
     checkpoint_prefix = os.path.join(checkpoint_dir, 'ckpt')
     restore_from_checkpoint(checkpoint, checkpoint_dir)
-    log_dir = os.path.join(project_dir, 'saved_models', 'tensorboard')
-
     # Create a tf.data.Iterator from the Datasets:
     train_datasetA, train_datasetB = iter(data[0]), iter(data[1])
+    # Initialize history buffers:
     discA_buffer = ImageHistoryBuffer(50, batch_size, img_size // 8) # / 8 for PatchGAN
     discB_buffer = ImageHistoryBuffer(50, batch_size, img_size // 8)
+    # Initialize or restore global step:
     global_step = tf.train.get_or_create_global_step()
+    # Initialize Tensorboard summary writer:
     log_dir = os.path.join(project_dir, 'saved_models', 'tensorboard')
     summary_writer = tf.contrib.summary.create_file_writer(log_dir, flush_millis=10000)
-
     for epoch in range(epochs):
         with summary_writer.as_default():
             start = time.time()
@@ -163,8 +163,8 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
                 with tf.contrib.summary.record_summaries_every_n_global_steps(400, global_step=global_step):
                     try:
                         # Get next training batches:
-                        trainA = next(train_datasetA)
-                        trainB = next(train_datasetB)
+                        trainA = train_datasetA.get_next()
+                        trainB = train_datasetB.get_next()
                     except tf.errors.OutOfRangeError:
                         print("Error, run out of data")
                         break
@@ -200,7 +200,6 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
                     discB_opt.apply_gradients(zip(discB_gradients, discB.variables), global_step=global_step)
                     genA2B_opt.apply_gradients(zip(genA2B_gradients, genA2B.variables), global_step=global_step)
                     genB2A_opt.apply_gradients(zip(genB2A_gradients, genB2A.variables), global_step=global_step)
-
                     # Summaries
                     tf.contrib.summary.scalar('loss/genA2B', genA2B_loss)
                     tf.contrib.summary.scalar('loss/genB2A', genB2A_loss)
@@ -208,7 +207,6 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
                     tf.contrib.summary.scalar('loss/discB', discB_loss)
                     tf.contrib.summary.scalar('loss/cyc', cyc_loss)
                     tf.contrib.summary.scalar('learning_rate', learning_rate)
-
                     tf.contrib.summary.histogram('discA/real', discA_real)
                     tf.contrib.summary.histogram('discA/fake', discA_fake)
                     tf.contrib.summary.histogram('discB/real', discB_real)
@@ -236,9 +234,8 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
 if __name__ == "__main__":
     checkpoint_dir = os.path.join(project_dir, 'saved_models', 'checkpoints')
     with tf.device("/cpu:0"): # Preprocess data on CPU for significant performance gains.
-        data = load_test_data(dataset_id, project_dir)
-
+        data = load_train_data(dataset_id, project_dir)
     with tf.device("/gpu:0"):
-        model = define_model(initial_learning_rate=initial_learning_rate, training=False)
-        checkpoint_info = define_checkpoint(checkpoint_dir, model, training=False)
-        test(data, model, checkpoint_info, dataset_id)
+        model = define_model(initial_learning_rate=initial_learning_rate, training=True)
+        checkpoint_info = define_checkpoint(checkpoint_dir, model, training=True)
+        train(data, model, checkpoint_info, dataset_id)
