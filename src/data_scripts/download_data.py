@@ -25,4 +25,4 @@ if __name__ == "__main__":
     project_dir = os.path.abspath(os.path.join(os.getcwd(), os.pardir))
     raw_data = os.path.join(project_dir, 'data', 'raw')
     download_data(FLAGS.dataset_id, download_location=raw_data)
-    # Add code to check if dataset is already there.
+    # TODO: Add code to check if dataset is already there.
