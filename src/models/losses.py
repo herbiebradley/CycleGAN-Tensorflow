@@ -33,12 +33,12 @@ def generator_loss(disc_of_gen_output, use_lsgan=True):
 
 def cycle_consistency_loss(dataA, dataB, reconstructedA, reconstructedB, norm='l1'):
     if norm == 'l1':
-        loss = tf.reduce_mean(tf.abs(dataA - reconstructedA)) + tf.reduce_mean(tf.abs(dataB - reconstructedB))
+        loss = tf.reduce_mean(tf.abs(reconstructedA - dataA)) + tf.reduce_mean(tf.abs(reconstructedB - dataB))
         return loss
     else:
         raise NotImplementedError #TODO: l2 norm option
 
-def identity_loss(trainA, trainB, identityA, identityB, norm='l1')
+def identity_loss(trainA, trainB, identityA, identityB, norm='l1'):
     if norm == 'l1':
         loss = tf.reduce_mean(tf.abs(identityA - trainA)) + tf.reduce_mean(tf.abs(identityB - trainB))
         return loss
