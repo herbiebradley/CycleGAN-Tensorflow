@@ -23,13 +23,14 @@ tf.enable_eager_execution()
 project_dir = os.path.abspath(os.path.join(os.getcwd(), os.pardir))
 dataset_id = 'horse2zebra'
 initial_learning_rate = 0.0002
+num_gen_filters = 32
+num_disc_filters = 64
 batch_size = 1 # Set batch size to 4 or 16 if training multigpu
 img_size = 256
 cyc_lambda = 10
+identity_lambda = 0
 if dataset_id == 'monet2photo':
     identity_lambda = 0.5
-else:
-    identity_lambda = 0
 epochs = 2
 batches_per_epoch = models.get_batches_per_epoch(dataset_id, project_dir)
 
@@ -171,77 +172,68 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
                         break
                     with tf.GradientTape(persistent=True) as tape:
                         # Gen output shape: (batch_size, img_size, img_size, 3)
-                        genA2B_output = genA2B(trainA, training=True)
-                        genB2A_output = genB2A(trainB, training=True)
+                        genA2B_output = genA2B(trainA)
+                        genB2A_output = genB2A(trainB)
                         # Disc output shape: (batch_size, img_size/8, img_size/8, 1)
-                        discA_real = discA(trainA, training=True)
-                        discB_real = discB(trainB, training=True)
+                        discA_real = discA(trainA)
+                        discB_real = discB(trainB)
 
-                        discA_fake = discA(genB2A_output, training=True)
-                        discB_fake = discB(genA2B_output, training=True)
+                        discA_fake = discA(genB2A_output)
+                        discB_fake = discB(genA2B_output)
                         # Sample from history buffer of 50 images:
                         discA_fake_refined = discA_buffer.query(discA_fake)
                         discB_fake_refined = discB_buffer.query(discB_fake)
 
-                        reconstructedA = genB2A(genA2B_output, training=True)
-                        reconstructedB = genA2B(genB2A_output, training=True)
+                        reconstructedA = genB2A(genA2B_output)
+                        reconstructedB = genA2B(genB2A_output)
+                        identityA, identityB = 0, 0
                         if dataset_id == 'monet2photo':
-                            identityA = genB2A(trainA, training=True)
-                            identityB = genA2B(trainB, training= True)
-                        else:
-                            identityA, identityB = 0, 0
-                        identity_loss = identity_lambda * cyc_lambda * identity_loss(trainA, trainB, identityA, identityB)
+                            identityA = genB2A(trainA)
+                            identityB = genA2B(trainB)
+
                         cyc_loss = cyc_lambda * cycle_consistency_loss(trainA, trainB, reconstructedA, reconstructedB)
-                        genA2B_loss = generator_loss(discB_fake_refined) + cyc_loss + identity_loss
-                        genB2A_loss = generator_loss(discA_fake_refined) + cyc_loss + identity_loss
+                        id_loss = identity_lambda * cyc_lambda * identity_loss(trainA, trainB, identityA, identityB)
+                        genA2B_loss = generator_loss(discB_fake_refined) + cyc_loss + id_loss
+                        genB2A_loss = generator_loss(discA_fake_refined) + cyc_loss + id_loss
                         discA_loss = discriminator_loss(discA_real, discA_fake_refined)
                         discB_loss = discriminator_loss(discB_real, discB_fake_refined)
+                        # Summaries for Tensorboard:
+                        tf.contrib.summary.scalar('loss/genA2B', genA2B_loss)
+                        tf.contrib.summary.scalar('loss/genB2A', genB2A_loss)
+                        tf.contrib.summary.scalar('loss/discA', discA_loss)
+                        tf.contrib.summary.scalar('loss/discB', discB_loss)
+                        tf.contrib.summary.scalar('loss/cyc', cyc_loss)
+                        tf.contrib.summary.scalar('loss/identity', id_loss)
+                        tf.contrib.summary.scalar('learning_rate', learning_rate)
+                        tf.contrib.summary.image('A/generated', genB2A_output)
+                        tf.contrib.summary.image('A/reconstructed', reconstructedA)
+                        tf.contrib.summary.image('B/generated', genA2B_output)
+                        tf.contrib.summary.image('B/reconstructed', reconstructedB)
 
                     discA_gradients = tape.gradient(discA_loss, discA.variables)
                     discB_gradients = tape.gradient(discB_loss, discB.variables)
                     genA2B_gradients = tape.gradient(genA2B_loss, genA2B.variables)
                     genB2A_gradients = tape.gradient(genB2A_loss, genB2A.variables)
-
+                    # Try chaining disc and gen parameters into 2 optimizers?
                     discA_opt.apply_gradients(zip(discA_gradients, discA.variables), global_step=global_step)
                     discB_opt.apply_gradients(zip(discB_gradients, discB.variables), global_step=global_step)
                     genA2B_opt.apply_gradients(zip(genA2B_gradients, genA2B.variables), global_step=global_step)
                     genB2A_opt.apply_gradients(zip(genB2A_gradients, genB2A.variables), global_step=global_step)
-                    # Summaries
-                    tf.contrib.summary.scalar('loss/genA2B', genA2B_loss)
-                    tf.contrib.summary.scalar('loss/genB2A', genB2A_loss)
-                    tf.contrib.summary.scalar('loss/discA', discA_loss)
-                    tf.contrib.summary.scalar('loss/discB', discB_loss)
-                    tf.contrib.summary.scalar('loss/cyc', cyc_loss)
-                    tf.contrib.summary.scalar('learning_rate', learning_rate)
-                    tf.contrib.summary.histogram('discA/real', discA_real)
-                    tf.contrib.summary.histogram('discA/fake', discA_fake)
-                    tf.contrib.summary.histogram('discB/real', discB_real)
-                    tf.contrib.summary.histogram('discB/fake', discA_fake)
-                    # Transform images from [-1, 1] to [0, 1) for Tensorboard.
-                    tf.contrib.summary.image('A/generated', (genB2A_output * 0.5) + 0.5)
-                    tf.contrib.summary.image('A/reconstructed', (reconstructedA * 0.5) + 0.5)
-                    tf.contrib.summary.image('B/generated', (genA2B_output * 0.5) + 0.5)
-                    tf.contrib.summary.image('B/reconstructed', (reconstructedB * 0.5) + 0.5)
-
-                    if train_step % 100 == 0:
-                        # Here we do global step / 4 because there are 4 gradient updates per batch.
-                        print("Global Training Step: ", global_step.numpy() // 4)
-                        print("Epoch Training Step: ", train_step + 1)
         # Assign decayed learning rate:
         learning_rate.assign(models.get_learning_rate(initial_learning_rate, global_step, batches_per_epoch))
-        print("Learning rate in total epoch {} is: {}".format(global_step.numpy() // (4 * batches_per_epoch),
-                                                            learning_rate.numpy()))
         # Checkpoint the model:
         if (epoch + 1) % 5 == 0:
             checkpoint_path = checkpoint.save(file_prefix=checkpoint_prefix)
             print("Checkpoint saved at ", checkpoint_path)
-        print ("Time taken for local epoch {} is {} sec\n".format(epoch + 1, time.time()-start))
+        print("Global Training Step: ", global_step.numpy() // 4)
+        print ("Time taken for local epoch {} is {} sec\n".format(global_step.numpy() // (4 * batches_per_epoch),
+                                                                  time.time()-start))
 
 if __name__ == "__main__":
     checkpoint_dir = os.path.join(project_dir, 'saved_models', 'checkpoints')
     with tf.device("/cpu:0"): # Preprocess data on CPU for significant performance gains.
         data = load_train_data(dataset_id, project_dir)
-    with tf.device("/gpu:0"):
-        model = define_model(initial_learning_rate=initial_learning_rate, training=True)
+    #with tf.device("/gpu:0"):
+        model = define_model(initial_learning_rate, training=True)
         checkpoint_info = define_checkpoint(checkpoint_dir, model, training=True)
         train(data, model, checkpoint_info, epochs=epochs)
