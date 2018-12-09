@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 import models
 from preprocessing.load_data import load_train_data, load_test_data, save_images
-from models.losses import generator_loss, discriminator_loss, cycle_consistency_loss
+from models.losses import generator_loss, discriminator_loss, cycle_consistency_loss, identity_loss
 from models.networks import Generator, Discriminator
 from utils.image_history_buffer import ImageHistoryBuffer
 
@@ -26,6 +26,10 @@ initial_learning_rate = 0.0002
 batch_size = 1 # Set batch size to 4 or 16 if training multigpu
 img_size = 256
 cyc_lambda = 10
+if dataset_id == 'monet2photo':
+    identity_lambda = 0.5
+else:
+    identity_lambda = 0
 epochs = 2
 batches_per_epoch = models.get_batches_per_epoch(dataset_id, project_dir)
 
@@ -33,10 +37,8 @@ def define_checkpoint(checkpoint_dir, model, training=True):
     if not training:
         genA2B = model['genA2B']
         genB2A = model['genB2A']
-
         global_step = tf.train.get_or_create_global_step()
-        checkpoint = tf.train.Checkpoint(genA2B=genA2B, genB2A=genB2A,
-                                         global_step=global_step)
+        checkpoint = tf.train.Checkpoint(genA2B=genA2B, genB2A=genB2A, global_step=global_step)
     else:
         nets, optimizers = model
         discA = nets['discA']
@@ -48,7 +50,6 @@ def define_checkpoint(checkpoint_dir, model, training=True):
         genA2B_opt = optimizers['genA2B_opt']
         genB2A_opt = optimizers['genB2A_opt']
         learning_rate = optimizers['learning_rate']
-
         global_step = tf.train.get_or_create_global_step()
         checkpoint = tf.train.Checkpoint(discA=discA, discB=discB, genA2B=genA2B,
                                          genB2A=genB2A, discA_opt=discA_opt,
@@ -85,7 +86,7 @@ def define_model(initial_learning_rate, training=True):
         discB_opt = tf.train.AdamOptimizer(learning_rate, beta1=0.5)
         genA2B_opt = tf.train.AdamOptimizer(learning_rate, beta1=0.5)
         genB2A_opt = tf.train.AdamOptimizer(learning_rate, beta1=0.5)
-
+        
         nets = {'discA':discA, 'discB':discB, 'genA2B':genA2B, 'genB2A':genB2A}
         optimizers = {'discA_opt':discA_opt, 'discB_opt':discB_opt, 'genA2B_opt':genA2B_opt,
                       'genB2A_opt':genB2A_opt, 'learning_rate':learning_rate}
@@ -184,10 +185,15 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
 
                         reconstructedA = genB2A(genA2B_output, training=True)
                         reconstructedB = genA2B(genB2A_output, training=True)
-
-                        cyc_loss = cycle_consistency_loss(trainA, trainB, reconstructedA, reconstructedB)
-                        genA2B_loss = generator_loss(discB_fake_refined) + cyc_loss
-                        genB2A_loss = generator_loss(discA_fake_refined) + cyc_loss
+                        if dataset_id == 'monet2photo':
+                            identityA = genB2A(trainA, training=True)
+                            identityB = genA2B(trainB, training= True)
+                        else:
+                            identityA, identityB = 0, 0
+                        identity_loss = identity_lambda * cyc_lambda * identity_loss(trainA, trainB, identityA, identityB)
+                        cyc_loss = cyc_lambda * cycle_consistency_loss(trainA, trainB, reconstructedA, reconstructedB)
+                        genA2B_loss = generator_loss(discB_fake_refined) + cyc_loss + identity_loss
+                        genB2A_loss = generator_loss(discA_fake_refined) + cyc_loss + identity_loss
                         discA_loss = discriminator_loss(discA_real, discA_fake_refined)
                         discB_loss = discriminator_loss(discB_real, discB_fake_refined)
 
@@ -226,7 +232,7 @@ def train(data, model, checkpoint_info, epochs, initial_learning_rate=initial_le
         print("Learning rate in total epoch {} is: {}".format(global_step.numpy() // (4 * batches_per_epoch),
                                                             learning_rate.numpy()))
         # Checkpoint the model:
-        if (epoch + 1) % 2 == 0:
+        if (epoch + 1) % 5 == 0:
             checkpoint_path = checkpoint.save(file_prefix=checkpoint_prefix)
             print("Checkpoint saved at ", checkpoint_path)
         print ("Time taken for local epoch {} is {} sec\n".format(epoch + 1, time.time()-start))

@@ -48,7 +48,7 @@ class Residual(tf.keras.Model):
         x = self.conv2(x)
         x = tf.contrib.layers.instance_norm(x, epsilon=1e-05, trainable=training)
 
-        x = tf.add(x, inputs) # Consider concatenating in channel dimension here for better net
+        x = tf.add(x, inputs) # Add better than concatenation.
         return x
 
 
@@ -81,7 +81,7 @@ class Generator(tf.keras.Model):
 
     def __init__(self, img_size=256, skip=False):
         super(Generator, self).__init__()
-        
+
         self.img_size = img_size
         self.skip = skip #TODO: Add skip
         self.encoder = Encoder()
@@ -157,5 +157,5 @@ class Discriminator(tf.keras.Model):
         x = self.leaky(x)
 
         x = self.conv5(x)
-        #x = tf.nn.sigmoid(x) # use_sigmoid = not use_lsgan
+        #x = tf.nn.sigmoid(x) # use_sigmoid = not use_lsgan TODO
         return x
