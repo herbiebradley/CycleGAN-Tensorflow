@@ -7,7 +7,7 @@ import time
 
 import tensorflow as tf
 
-from cyclegan import define_checkpoint, define_model, restore_from_checkpoint
+from train import define_checkpoint, define_model, restore_from_checkpoint
 from pipeline.data import load_test_data, save_images
 
 project_dir = os.path.abspath(os.path.join(os.getcwd(), os.pardir))
@@ -59,5 +59,5 @@ if __name__ == "__main__":
         data = load_test_data(dataset_id, project_dir)
     #with tf.device("/gpu:0"):
         model = define_model(initial_learning_rate, training=False)
-        checkpoint_info = define_checkpoint(checkpoint_dir, model, training=False)
+        checkpoint_info = initialize_checkpoint(checkpoint_dir, model, training=False)
         test(data, model, checkpoint_info, dataset_id)
