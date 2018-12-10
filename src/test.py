@@ -8,11 +8,11 @@ import time
 import tensorflow as tf
 
 from cyclegan import define_checkpoint, define_model, restore_from_checkpoint
-from pipeline.load_data import load_test_data, save_images
+from pipeline.data import load_test_data, save_images
 
 project_dir = os.path.abspath(os.path.join(os.getcwd(), os.pardir))
 checkpoint_dir = os.path.join(project_dir, 'saved_models', 'checkpoints')
-dataset_id = 'horse2zebra'
+dataset_id = 'facades'
 initial_learning_rate = 0.0002
 
 def test(data, model, checkpoint_info, dataset_id):
@@ -21,7 +21,7 @@ def test(data, model, checkpoint_info, dataset_id):
     generatedB = os.path.join(path_to_dataset, 'generatedB' + os.sep)
     genA2B = model['genA2B']
     genB2A = model['genB2A']
-
+    return None
     checkpoint, checkpoint_dir = checkpoint_info
     restore_from_checkpoint(checkpoint, checkpoint_dir)
     test_datasetA, test_datasetB, testA_size, testB_size = data
@@ -57,7 +57,7 @@ def test(data, model, checkpoint_info, dataset_id):
 if __name__ == "__main__":
     with tf.device("/cpu:0"): # Preprocess data on CPU for significant performance gains.
         data = load_test_data(dataset_id, project_dir)
-    with tf.device("/gpu:0"):
+    #with tf.device("/gpu:0"):
         model = define_model(initial_learning_rate, training=False)
         checkpoint_info = define_checkpoint(checkpoint_dir, model, training=False)
         test(data, model, checkpoint_info, dataset_id)

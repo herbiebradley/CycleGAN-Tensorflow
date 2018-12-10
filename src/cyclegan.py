@@ -5,12 +5,11 @@ from __future__ import print_function
 import os
 import time
 import multiprocessing
-import glob
 
 import tensorflow as tf
 
 import models
-from pipeline.load_data import load_train_data
+from pipeline.data import load_train_data
 from models.losses import generator_loss, discriminator_loss, cycle_consistency_loss, identity_loss
 from models.networks import Generator, Discriminator
 from utils.image_history_buffer import ImageHistoryBuffer
@@ -19,9 +18,9 @@ tf.enable_eager_execution()
 
 """Hyperparameters (TODO: Move to argparse)"""
 project_dir = os.path.abspath(os.path.join(os.getcwd(), os.pardir))
-dataset_id = 'horse2zebra'
+dataset_id = 'facades'
 initial_learning_rate = 0.0002
-num_gen_filters = 32
+num_gen_filters = 64
 num_disc_filters = 64
 batch_size = 1 # Set batch size to 4 or 16 if training multigpu
 img_size = 256
@@ -29,7 +28,8 @@ cyc_lambda = 10
 identity_lambda = 0
 if dataset_id == 'monet2photo':
     identity_lambda = 0.5
-epochs = 2
+epochs = 50
+save_epoch_freq = 5
 batches_per_epoch = models.get_batches_per_epoch(dataset_id, project_dir)
 
 def define_checkpoint(checkpoint_dir, model, training=True):
@@ -181,7 +181,7 @@ def train(data, model, checkpoint_info, epochs):
         # Assign decayed learning rate:
         learning_rate.assign(models.get_learning_rate(initial_learning_rate, global_step, batches_per_epoch))
         # Checkpoint the model:
-        if (epoch + 1) % 5 == 0:
+        if (epoch + 1) % save_epoch_freq == 0:
             checkpoint_path = checkpoint.save(file_prefix=checkpoint_prefix)
             print("Checkpoint saved at ", checkpoint_path)
         print("Global Training Step: ", global_step.numpy() // 4)
