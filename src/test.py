@@ -20,7 +20,11 @@ def test(data, model, checkpoint_info, dataset_id):
     generatedB = os.path.join(path_to_dataset, 'generatedB' + os.sep)
     genA2B = model['genA2B']
     genB2A = model['genB2A']
+<<<<<<< Updated upstream
 
+=======
+    
+>>>>>>> Stashed changes
     checkpoint, checkpoint_dir = checkpoint_info
     restore_from_checkpoint(checkpoint, checkpoint_dir)
     test_datasetA, test_datasetB, testA_size, testB_size = data
@@ -57,6 +61,10 @@ if __name__ == "__main__":
     with tf.device("/cpu:0"): # Preprocess data on CPU for significant performance gains.
         data = load_test_data(dataset_id, project_dir)
     with tf.device("/gpu:0"):
+<<<<<<< Updated upstream
         model = define_model(training=False)
+=======
+        model = define_model(initial_learning_rate, training=False)
+>>>>>>> Stashed changes
         checkpoint_info = initialize_checkpoint(checkpoint_dir, model, training=False)
         test(data, model, checkpoint_info, dataset_id)

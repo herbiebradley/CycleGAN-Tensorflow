@@ -25,7 +25,13 @@ num_disc_filters = 64
 batch_size = 1 # Set batch size to 4 or 16 if training multigpu
 img_size = 256
 cyc_lambda = 10
+<<<<<<< Updated upstream
 identity_lambda = 0.5
+=======
+identity_lambda = 0
+if dataset_id == 'facades':
+    identity_lambda = 0.5
+>>>>>>> Stashed changes
 epochs = 15
 save_epoch_freq = 5
 batches_per_epoch = models.get_batches_per_epoch(dataset_id, project_dir)
@@ -137,14 +143,23 @@ def train(data, model, checkpoint_info, epochs):
                         discA_real = discA(trainA)
                         discB_real = discB(trainB)
 
-                        discA_fake = discA(genB2A_output)
-                        discB_fake = discB(genA2B_output)
+                        discA_fake_refined = discA(genB2A_output)
+                        discB_fake_refined = discB(genA2B_output)
                         # Sample from history buffer of 50 images:
-                        discA_fake_refined = discA_buffer.query(discA_fake)
-                        discB_fake_refined = discB_buffer.query(discB_fake)
+                        #discA_fake_refined = discA_buffer.query(discA_fake)
+                        #discB_fake_refined = discB_buffer.query(discB_fake)
 
+<<<<<<< Updated upstream
                         identityA = genB2A(trainA)
                         identityB = genA2B(trainB)
+=======
+                        reconstructedA = genB2A(genA2B_output)
+                        reconstructedB = genA2B(genB2A_output)
+                        identityA = genB2A(trainA)
+                        identityB = genA2B(trainB)
+
+                        cyc_loss = cyc_lambda * cycle_consistency_loss(trainA, trainB, reconstructedA, reconstructedB)
+>>>>>>> Stashed changes
                         id_loss = identity_lambda * cyc_lambda * identity_loss(trainA, trainB, identityA, identityB)
 
                         genA2B_loss_basic = generator_loss(discB_fake_refined)
@@ -193,7 +208,7 @@ if __name__ == "__main__":
     checkpoint_dir = os.path.join(project_dir, 'saved_models', 'checkpoints')
     with tf.device("/cpu:0"): # Preprocess data on CPU for significant performance gains.
         data = load_train_data(dataset_id, project_dir)
-    #with tf.device("/gpu:0"):
+    with tf.device("/gpu:0"):
         model = define_model(initial_learning_rate, training=True)
         checkpoint_info = initialize_checkpoint(checkpoint_dir, model, training=True)
         train(data, model, checkpoint_info, epochs=epochs)
