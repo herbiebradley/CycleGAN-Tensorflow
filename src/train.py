@@ -4,7 +4,6 @@ from __future__ import print_function
 
 import os
 import time
-import multiprocessing
 
 import tensorflow as tf
 
@@ -30,87 +29,10 @@ epochs = 15
 save_epoch_freq = 5
 batches_per_epoch = models.get_batches_per_epoch(dataset_id, project_dir)
 
-def initialize_checkpoint(checkpoint_dir, model, training=True):
-    if not training:
-        genA2B = model['genA2B']
-        genB2A = model['genB2A']
-        global_step = tf.train.get_or_create_global_step()
-        checkpoint = tf.train.Checkpoint(genA2B=genA2B, genB2A=genB2A, global_step=global_step)
-    else:
-        nets, optimizers = model
-        discA = nets['discA']
-        discB = nets['discB']
-        genA2B = nets['genA2B']
-        genB2A = nets['genB2A']
-        discA_opt = optimizers['discA_opt']
-        discB_opt = optimizers['discB_opt']
-        genA2B_opt = optimizers['genA2B_opt']
-        genB2A_opt = optimizers['genB2A_opt']
-        learning_rate = optimizers['learning_rate']
-        global_step = tf.train.get_or_create_global_step()
-        checkpoint = tf.train.Checkpoint(discA=discA, discB=discB, genA2B=genA2B,
-                                         genB2A=genB2A, discA_opt=discA_opt,
-                                         discB_opt=discB_opt, genA2B_opt=genA2B_opt,
-                                         genB2A_opt=genB2A_opt, learning_rate=learning_rate,
-                                         global_step=global_step)
-    return checkpoint, checkpoint_dir
-
-def restore_from_checkpoint(checkpoint, checkpoint_dir):
-    latest_checkpoint = tf.train.latest_checkpoint(checkpoint_dir)
-    if latest_checkpoint is not None:
-        # Use assert_existing_objects_matched() instead of asset_consumed() here because
-        # optimizers aren't initialized fully until first gradient update.
-        # This will throw an exception if checkpoint does not restore the model weights.
-        checkpoint.restore(latest_checkpoint).assert_existing_objects_matched()
-        print("Checkpoint restored from ", latest_checkpoint)
-        # Uncomment below to print full list of checkpoint metadata.
-        #print(tf.contrib.checkpoint.object_metadata(latest_checkpoint))
-    else:
-        print("No checkpoint found, initializing model.")
-
-def define_model(initial_learning_rate=0.0002, training=True):
-    if not training:
-        genA2B = Generator(num_gen_filters, img_size=img_size)
-        genB2A = Generator(num_gen_filters, img_size=img_size)
-        return {'genA2B':genA2B, 'genB2A':genB2A}
-    else:
-        discA = Discriminator(num_disc_filters)
-        discB = Discriminator(num_disc_filters)
-        genA2B = Generator(num_gen_filters, img_size=img_size)
-        genB2A = Generator(num_gen_filters, img_size=img_size)
-        learning_rate = tf.contrib.eager.Variable(initial_learning_rate, dtype=tf.float32, name='learning_rate')
-        discA_opt = tf.train.AdamOptimizer(learning_rate, beta1=0.5)
-        discB_opt = tf.train.AdamOptimizer(learning_rate, beta1=0.5)
-        genA2B_opt = tf.train.AdamOptimizer(learning_rate, beta1=0.5)
-        genB2A_opt = tf.train.AdamOptimizer(learning_rate, beta1=0.5)
-
-        nets = {'discA':discA, 'discB':discB, 'genA2B':genA2B, 'genB2A':genB2A}
-        optimizers = {'discA_opt':discA_opt, 'discB_opt':discB_opt, 'genA2B_opt':genA2B_opt,
-                      'genB2A_opt':genB2A_opt, 'learning_rate':learning_rate}
-        return nets, optimizers
-
 def train(data, model, checkpoint_info, epochs):
-    nets, optimizers = model
-    discA = nets['discA']
-    discB = nets['discB']
-    genA2B = nets['genA2B']
-    genB2A = nets['genB2A']
-    discA_opt = optimizers['discA_opt']
-    discB_opt = optimizers['discB_opt']
-    genA2B_opt = optimizers['genA2B_opt']
-    genB2A_opt = optimizers['genB2A_opt']
-    learning_rate = optimizers['learning_rate']
-    # Restore latest checkpoint:
-    checkpoint, checkpoint_dir = checkpoint_info
-    checkpoint_prefix = os.path.join(checkpoint_dir, 'ckpt')
-    restore_from_checkpoint(checkpoint, checkpoint_dir)
     # Create a tf.data.Iterator from the Datasets:
-    train_datasetA, train_datasetB = iter(data[0]), iter(data[1])
-    # Initialize history buffers:
-    discA_buffer = ImageHistoryBuffer(50, batch_size, img_size // 8) # / 8 for PatchGAN
-    discB_buffer = ImageHistoryBuffer(50, batch_size, img_size // 8)
-    # Initialize or restore global step:
-    global_step = tf.train.get_or_create_global_step()
+    data = iter(data[0]), iter(data[1])
+    model.load_batch(data)
     # Initialize Tensorboard summary writer:
     log_dir = os.path.join(project_dir, 'saved_models', 'tensorboard')
     summary_writer = tf.contrib.summary.create_file_writer(log_dir, flush_millis=10000)
@@ -188,7 +110,7 @@ def train(data, model, checkpoint_info, epochs):
         print("Global Training Step: ", global_step.numpy() // 4)
         print ("Time taken for total epoch {} is {} sec\n".format(global_step.numpy() // (4 * batches_per_epoch),
                                                                   time.time()-start))
-
+        
 if __name__ == "__main__":
     checkpoint_dir = os.path.join(project_dir, 'saved_models', 'checkpoints')
     with tf.device("/cpu:0"): # Preprocess data on CPU for significant performance gains.

@@ -14,7 +14,7 @@ class Encoder(tf.keras.Model):
         self.conv3 = tf.keras.layers.Conv2D(ngf * 4, kernel_size=3, strides=2, padding='same', kernel_initializer=tf.truncated_normal_initializer(stddev=0.02))
 
     def call(self, inputs):
-        """Reflection padding is used to reduce artifacts."""
+        # Reflection padding is used to reduce artifacts.
         x = tf.pad(inputs, [[0, 0], [3, 3], [3, 3], [0, 0]], 'REFLECT')
         x = self.conv1(x)
         x = tf.contrib.layers.instance_norm(x, center=False, scale=False, epsilon=1e-05, trainable=False)
