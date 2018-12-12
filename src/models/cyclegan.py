@@ -80,7 +80,24 @@ class CycleGANModel(object):
         self.realB = input_batch[1].get_next()
 
     def forward(self):
-        raise NotImplementedError
+        self.fakeB = self.genA2B(self.realA)
+        self.reconstructedA = self.genB2A(self.fakeB)
+
+        self.fakeA = self.genB2A(self.realB)
+        self.reconstructedB = self.genA2B(self.fakeA)
+
+    def backward_D_basic(self, disc, real, fake):
+        # Real
+        pred_real = disc(real)
+        loss_D_real = self.criterionGAN(pred_real, True)
+        # Fake
+        pred_fake = disc(fake.detach())
+        loss_D_fake = self.criterionGAN(pred_fake, False)
+        # Combined loss
+        loss_D = (loss_D_real + loss_D_fake) * 0.5
+        # backward
+        loss_D.backward()
+        return loss_D
 
     def optimize_parameters(self):
         raise NotImplementedError
