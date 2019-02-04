@@ -4,11 +4,10 @@ from __future__ import print_function
 
 import tensorflow as tf
 
-def discriminator_loss(disc_of_real_output, disc_of_gen_output, use_lsgan=True):
-    label_value = 1 # TODO: Implement proper label for smoothing
+def discriminator_loss(disc_of_real_output, disc_of_gen_output, label_value=1, use_lsgan=True):
     if use_lsgan: # Use least squares loss
         real_loss = tf.reduce_mean(tf.squared_difference(disc_of_real_output, label_value))
-        generated_loss = tf.reduce_mean(tf.square(disc_of_gen_output))
+        generated_loss = tf.reduce_mean(tf.squared_difference(disc_of_gen_output, 1-label_value))
 
         total_disc_loss = (real_loss + generated_loss) * 0.5 # * 0.5 slows down rate D learns compared to G
 
@@ -20,8 +19,7 @@ def discriminator_loss(disc_of_real_output, disc_of_gen_output, use_lsgan=True):
 
     return total_disc_loss
 
-def generator_loss(disc_of_gen_output, use_lsgan=True):
-    label_value = 1
+def generator_loss(disc_of_gen_output, label_value=1, use_lsgan=True):
     if use_lsgan: # Use least squares loss
         gen_loss = tf.reduce_mean(tf.squared_difference(disc_of_gen_output, label_value))
 
@@ -31,16 +29,16 @@ def generator_loss(disc_of_gen_output, use_lsgan=True):
 
     return gen_loss
 
-def cycle_consistency_loss(dataA, reconstructedA, norm='l1'):
+def cycle_consistency_loss(data, reconstructed, norm='l1'):
     if norm == 'l1':
-        loss = tf.reduce_mean(tf.abs(reconstructedA - dataA))
+        loss = tf.reduce_mean(tf.abs(reconstructed - data))
         return loss
     else:
         raise NotImplementedError #TODO: l2 norm option
 
-def identity_loss(trainA, trainB, identityA, identityB, norm='l1'):
+def identity_loss(data, identity, norm='l1'):
     if norm == 'l1':
-        loss = tf.reduce_mean(tf.abs(identityA - trainA)) + tf.reduce_mean(tf.abs(identityB - trainB))
+        loss = tf.reduce_mean(tf.abs(identity - data))
         return loss
     else:
         raise NotImplementedError #TODO: l2 norm option

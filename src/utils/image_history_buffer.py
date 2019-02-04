@@ -20,12 +20,11 @@ class ImageHistoryBuffer(object):
 
     Attributes:
         image_history_buffer: Numpy array of image batches used to calculate average loss.
-
     """
     def __init__(self, max_buffer_size, batch_size, img_size):
         self.max_buffer_size = max_buffer_size
         self.batch_size = batch_size
-        self.image_history_buffer = np.zeros((0, img_size, img_size,1))
+        self.image_history_buffer = np.zeros((0, img_size, img_size, 3))
         assert(self.batch_size >= 1)
 
     def query(self, image_batch):
@@ -41,9 +40,7 @@ class ImageHistoryBuffer(object):
 
         Returns:
             Tensor: Processed batch.
-
         """
-
         image_batch = image_batch.numpy()
         self._add_to_image_history_buffer(image_batch)
         if self.batch_size > 1:
@@ -60,7 +57,6 @@ class ImageHistoryBuffer(object):
 
         Args:
             image_batch (ndarray): Incoming image batch.
-
         """
         images_to_add = max(1, self.batch_size // 2)
 

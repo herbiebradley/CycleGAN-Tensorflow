@@ -11,6 +11,7 @@ import models
 from pipeline.data import load_train_data
 from models.losses import generator_loss, discriminator_loss, cycle_consistency_loss, identity_loss
 from models.networks import Generator, Discriminator
+from models.cyclegan import CycleGANModel
 from utils.image_history_buffer import ImageHistoryBuffer
 
 tf.enable_eager_execution()
@@ -29,10 +30,9 @@ epochs = 15
 save_epoch_freq = 5
 batches_per_epoch = models.get_batches_per_epoch(dataset_id, project_dir)
 
-def train(data, model, checkpoint_info, epochs):
+def train(data, model, options):
     # Create a tf.data.Iterator from the Datasets:
     data = iter(data[0]), iter(data[1])
-    model.load_batch(data)
     # Initialize Tensorboard summary writer:
     log_dir = os.path.join(project_dir, 'saved_models', 'tensorboard')
     summary_writer = tf.contrib.summary.create_file_writer(log_dir, flush_millis=10000)
@@ -69,8 +69,8 @@ def train(data, model, checkpoint_info, epochs):
                         identityB = genA2B(trainB)
                         id_loss = identity_lambda * cyc_lambda * identity_loss(trainA, trainB, identityA, identityB)
 
-                        genA2B_loss_basic = generator_loss(discB_fake_refined)
-                        genB2A_loss_basic = generator_loss(discA_fake_refined)
+                        genA2B_loss_basic = generator_loss(discB_fake)
+                        genB2A_loss_basic = generator_loss(discA_fake)
                         cyc_lossA = cyc_lambda * cycle_consistency_loss(trainA, reconstructedA)
                         cyc_lossB = cyc_lambda * cycle_consistency_loss(trainB, reconstructedB)
 
@@ -110,12 +110,16 @@ def train(data, model, checkpoint_info, epochs):
         print("Global Training Step: ", global_step.numpy() // 4)
         print ("Time taken for total epoch {} is {} sec\n".format(global_step.numpy() // (4 * batches_per_epoch),
                                                                   time.time()-start))
-        
+
 if __name__ == "__main__":
     checkpoint_dir = os.path.join(project_dir, 'saved_models', 'checkpoints')
     with tf.device("/cpu:0"): # Preprocess data on CPU for significant performance gains.
         data = load_train_data(dataset_id, project_dir)
-    with tf.device("/gpu:0"):
-        model = define_model(initial_learning_rate, training=True)
-        checkpoint_info = initialize_checkpoint(checkpoint_dir, model, training=True)
-        train(data, model, checkpoint_info, epochs=epochs)
+        model = CycleGANModel(initial_learning_rate, num_gen_filters,
+                                 num_disc_filters, batch_size, cyc_lambda,
+                                 identity_lambda, checkpoint_dir, img_size,
+                                 training=True)
+    #with tf.device("/gpu:0"):
+        data = iter(data[0]), iter(data[1])
+        model.load_batch(data)
+        model.optimize_parameters()

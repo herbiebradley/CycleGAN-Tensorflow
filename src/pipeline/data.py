@@ -63,7 +63,7 @@ def load_train_data(dataset_id, project_dir, batch_size=1):
     # Queue up batches asynchronously onto the GPU.
     # As long as there is a pool of batches CPU side a GPU prefetch of 1 is fine.
     # TODO: If GPU exists:
-    train_datasetA = train_datasetA.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
+    #train_datasetA = train_datasetA.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
 
     train_datasetB = tf.data.Dataset.list_files(trainB_path + os.sep + '*.jpg', shuffle=False)
     train_datasetB = train_datasetB.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=trainB_size))
@@ -72,7 +72,7 @@ def load_train_data(dataset_id, project_dir, batch_size=1):
                                                             num_parallel_calls=threads,
                                                             drop_remainder=True))
     train_datasetB = train_datasetB.prefetch(buffer_size=threads)
-    train_datasetB = train_datasetB.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
+    #train_datasetB = train_datasetB.apply(tf.contrib.data.prefetch_to_device("/gpu:0", buffer_size=1))
 
     return train_datasetA, train_datasetB
 
