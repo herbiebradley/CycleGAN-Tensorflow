@@ -68,9 +68,9 @@ class CycleGANModel(object):
         else:
             print("No checkpoint found, initializing model.")
 
-    def load_batch(self, input_batch):
-        self.dataA = input_batch[0].get_next()
-        self.dataB = input_batch[1].get_next()
+    def set_input(self, input):
+        self.dataA = input["A"]
+        self.dataB = input["B"]
 
     def forward(self):
         # Gen output shape: (batch_size, img_size, img_size, 3)
@@ -88,11 +88,13 @@ class CycleGANModel(object):
         return disc_loss
 
     def backward_discA(self):
+        # Sample from history buffer of 50 images:
         fake_A = self.discA_buffer.query(self.fakeA)
         discA_loss = self.backward_D(self.discA, self.dataA, fake_A)
         return discA_loss
 
     def backward_discB(self):
+        # Sample from history buffer of 50 images:
         fake_B = self.discB_buffer.query(self.fakeB)
         discB_loss = self.backward_D(self.discB, self.dataB, fake_B)
         return discB_loss
@@ -155,5 +157,7 @@ class CycleGANModel(object):
         checkpoint_path = self.checkpoint.save(file_prefix=checkpoint_prefix)
         print("Checkpoint saved at ", checkpoint_path)
 
-    def update_learning_rate(self):
-        raise NotImplementedError
+    def update_learning_rate(self, batches_per_epoch):
+        new_learning_rate = models.get_learning_rate(self.initial_learning_rate,
+                                            self.global_step, batches_per_epoch)
+        self.learning_rate.assign(new_learning_rate)
