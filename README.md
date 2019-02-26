@@ -13,24 +13,11 @@ Project Organization
 
     ├── LICENSE
     ├── Makefile           <- Makefile with commands like `make data` or `make train`
-    ├── README.md          <- The top-level README for developers using this project.
+    ├── README.md
     ├── data
-    │   ├── external       <- Data from third party sources.
-    │   ├── interim        <- Intermediate data that has been transformed.
-    │   ├── processed      <- The final, canonical data sets for modeling.
-    │   └── raw            <- The original, immutable data dump.
+    │   └── raw            <- Raw data before any processing.
     │
-    ├── models             <- Trained and serialized models, model predictions, or model summaries
-    │
-    ├── notebooks          <- Jupyter notebooks.
-    │
-    ├── references         <- Data dictionaries, manuals, and all other explanatory materials.
-    │
-    ├── reports            <- Generated analysis as HTML, PDF, LaTeX, etc.
-    │   └── figures        <- Generated graphics and figures to be used in reporting
-    │
-    ├── requirements.yml   <- The requirements file for reproducing the analysis environment, e.g.
-    │                         generated with `pip freeze > requirements.txt`
+    ├── saved_models       <- Checkpointed models and tensorboard summaries.
     │
     ├── setup.py           <- makes project pip installable (pip install -e .) so src can be imported
     └── src                <- Source code for use in this project.
@@ -48,10 +35,13 @@ Project Organization
         │   └── base_options.py
         │
         ├── models         <- Code for defining the network structure and loss functions
+        │   ├── __init__.py     <- model helper functions
         │   ├── network.py
+        │   ├── cyclegan.py
         │   └── losses.py
         │
         └── utils  <- Utility files, including scripts for visualisation
+            └── image_history_buffer.py
 
 --------
 
