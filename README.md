@@ -14,33 +14,30 @@ Project Organization
     ├── LICENSE
     ├── Makefile           <- Makefile with commands like `make data` or `make train`
     ├── README.md
-    ├── data
-    │   └── raw            <- Raw data before any processing.
+    ├── datasets           <- All datasets are stored here
     │
-    ├── saved_models       <- Checkpointed models and tensorboard summaries.
+    ├── saved_models       <- Checkpointed models and tensorboard summaries
     │
     ├── setup.py           <- makes project pip installable (pip install -e .) so src can be imported
-    └── src                <- Source code for use in this project.
+    └── src                <- Source code for use in this project
         ├── __init__.py    <- Makes src a Python module
         │
-        ├── train.py       <- Run this to train.
+        ├── train.py       <- Run this to train
         │
-        ├── test.py        <- Run this to test.
+        ├── test.py        <- Run this to test
         │
-        ├── pipeline       <- Code for downloading or loading data  
+        ├── data       <- Code for downloading or loading data  
         │   ├── data.py
         │   └── download_data.py
         │
-        ├── options       <- Files for command line options
-        │   └── base_options.py
-        │
         ├── models         <- Code for defining the network structure and loss functions
-        │   ├── __init__.py     <- model helper functions
+        │   ├── __init__.py
         │   ├── network.py
-        │   ├── cyclegan.py
+        │   ├── cyclegan.py     <- CycleGAN model class
         │   └── losses.py
         │
-        └── utils  <- Utility files, including scripts for visualisation
+        └── utils               <- Utility files
+            ├── options.py                 <- File for command line options
             └── image_history_buffer.py
 
 --------
