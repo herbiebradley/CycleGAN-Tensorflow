@@ -6,42 +6,34 @@ import os
 
 import tensorflow as tf
 
-import models
-from models.losses import generator_loss, discriminator_loss, cycle_consistency_loss, identity_loss
+from models.losses import generator_loss, discriminator_loss, cycle_loss, identity_loss
 from models.networks import Generator, Discriminator
 from utils.image_history_buffer import ImageHistoryBuffer
 
 class CycleGANModel(object):
 
-    def __init__(self, initial_learning_rate, num_gen_filters, num_disc_filters,
-                 batch_size, cyc_lambda, identity_lambda, checkpoint_dir,
-                 img_size, training):
-        self.isTrain = training
-        self.checkpoint_dir = checkpoint_dir
-        self.initial_learning_rate = initial_learning_rate
-        self.cyc_lambda = cyc_lambda
-        self.identity_lambda = identity_lambda
+    def __init__(self, opt):
+        self.opt = opt
 
-        self.genA2B = Generator(num_gen_filters, img_size=img_size)
-        self.genB2A = Generator(num_gen_filters, img_size=img_size)
+        self.genA2B = Generator(opt)
+        self.genB2A = Generator(opt)
 
-        if self.isTrain:
-            self.discA = Discriminator(num_disc_filters)
-            self.discB = Discriminator(num_disc_filters)
-            self.learning_rate = tf.contrib.eager.Variable(initial_learning_rate,
-                                            dtype=tf.float32, name='learning_rate')
-            self.disc_opt = tf.train.AdamOptimizer(self.learning_rate, beta1=0.5)
-            self.gen_opt = tf.train.AdamOptimizer(self.learning_rate, beta1=0.5)
+        if opt.training:
+            self.discA = Discriminator(opt)
+            self.discB = Discriminator(opt)
+            self.learning_rate = tf.contrib.eager.Variable(opt.lr, dtype=tf.float32, name='learning_rate')
+            self.disc_opt = tf.train.AdamOptimizer(self.learning_rate, beta1=opt.beta1)
+            self.gen_opt = tf.train.AdamOptimizer(self.learning_rate, beta1=opt.beta1)
             self.global_step = tf.train.get_or_create_global_step()
             # Initialize history buffers:
-            self.discA_buffer = ImageHistoryBuffer(50, batch_size, img_size)
-            self.discB_buffer = ImageHistoryBuffer(50, batch_size, img_size)
+            self.discA_buffer = ImageHistoryBuffer(opt)
+            self.discB_buffer = ImageHistoryBuffer(opt)
         # Restore latest checkpoint:
         self.initialize_checkpoint()
         self.restore_checkpoint()
 
     def initialize_checkpoint(self):
-        if self.isTrain:
+        if self.opt.training:
             self.checkpoint = tf.train.Checkpoint(discA=self.discA,
                                                   discB=self.discB,
                                                   genA2B=self.genA2B,
@@ -56,8 +48,9 @@ class CycleGANModel(object):
                                                   global_step=self.global_step)
 
     def restore_checkpoint(self):
-        latest_checkpoint = tf.train.latest_checkpoint(self.checkpoint_dir)
-        if latest_checkpoint is not None:
+        checkpoint_dir = os.path.join(self.opt.save_dir, 'checkpoints')
+        latest_checkpoint = tf.train.latest_checkpoint(checkpoint_dir)
+        if self.opt.load_checkpoint and latest_checkpoint is not None:
             # Use assert_existing_objects_matched() instead of asset_consumed() here because
             # optimizers aren't initialized fully until first gradient update.
             # This will throw an exception if checkpoint does not restore the model weights.
@@ -100,20 +93,20 @@ class CycleGANModel(object):
         return discB_loss
 
     def backward_G(self):
-        if self.identity_lambda > 0:
+        if opt.identity_lambda > 0:
             identityA = self.genB2A(self.dataA)
-            id_lossA = identity_loss(self.dataA, identityA) * self.cyc_lambda * self.identity_lambda
+            id_lossA = identity_loss(self.dataA, identityA) * opt.cyc_lambda * opt.identity_lambda
 
             identityB = self.genA2B(self.dataB)
-            id_lossB = identity_loss(self.dataB, identityB) * self.cyc_lambda * self.identity_lambda
+            id_lossB = identity_loss(self.dataB, identityB) * opt.cyc_lambda * opt.identity_lambda
         else:
             id_lossA, id_lossB = 0, 0
 
         genA2B_loss = generator_loss(self.discB(self.fakeB))
         genB2A_loss = generator_loss(self.discA(self.fakeA))
 
-        cyc_lossA = cycle_consistency_loss(self.dataA, self.reconstructedA) * self.cyc_lambda
-        cyc_lossB = cycle_consistency_loss(self.dataB, self.reconstructedB) * self.cyc_lambda
+        cyc_lossA = cycle_consistency_loss(self.dataA, self.reconstructedA) * opt.cyc_lambda
+        cyc_lossB = cycle_consistency_loss(self.dataB, self.reconstructedB) * opt.cyc_lambda
 
         gen_loss = genA2B_loss + genB2A_loss + cyc_lossA + cyc_lossB + id_lossA + id_lossB
         return gen_loss
@@ -153,11 +146,16 @@ class CycleGANModel(object):
                                                     global_step=self.global_step)
 
     def save_model(self):
-        checkpoint_prefix = os.path.join(self.checkpoint_dir, 'ckpt')
+        checkpoint_prefix = os.path.join(self.opt.save_dir, 'checkpoints', 'ckpt')
         checkpoint_path = self.checkpoint.save(file_prefix=checkpoint_prefix)
         print("Checkpoint saved at ", checkpoint_path)
 
     def update_learning_rate(self, batches_per_epoch):
-        new_learning_rate = models.get_learning_rate(self.initial_learning_rate,
-                                            self.global_step, batches_per_epoch)
-        self.learning_rate.assign(new_learning_rate)
+        new_lr = self._get_learning_rate(batches_per_epoch)
+        self.learning_rate.assign(new_lr)
+
+    def _get_learning_rate(self, batches_per_epoch):
+        global_step = self.global_step.numpy() / 3 # /3 because there are 3 gradient updates per batch.
+        total_epochs = global_step // batches_per_epoch
+        learning_rate_lambda = 1.0 - max(0, total_epochs - opt.niter) / float(opt.niter_decay + 1)
+        return self.opt.lr * max(0, learning_rate_lambda)

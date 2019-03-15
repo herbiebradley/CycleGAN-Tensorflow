@@ -29,7 +29,7 @@ def generator_loss(disc_of_gen_output, label_value=1, use_lsgan=True):
 
     return gen_loss
 
-def cycle_consistency_loss(data, reconstructed, norm='l1'):
+def cycle_loss(data, reconstructed, norm='l1'):
     if norm == 'l1':
         loss = tf.reduce_mean(tf.abs(reconstructed - data))
         return loss

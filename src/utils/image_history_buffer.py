@@ -21,10 +21,10 @@ class ImageHistoryBuffer(object):
     Attributes:
         image_history_buffer: Numpy array of image batches used to calculate average loss.
     """
-    def __init__(self, max_buffer_size, batch_size, img_size):
-        self.max_buffer_size = max_buffer_size
-        self.batch_size = batch_size
-        self.image_history_buffer = np.zeros((0, img_size, img_size, 3))
+    def __init__(self, opt):
+        self.max_buffer_size = opt.max_buffer_size
+        self.batch_size = opt.batch_size
+        self.image_history_buffer = np.zeros((0, opt.img_size, opt.img_size, 3))
         assert(self.batch_size >= 1)
 
     def query(self, image_batch):

@@ -8,7 +8,7 @@ import time
 import tensorflow as tf
 
 from train import initialize_checkpoint, define_model, restore_from_checkpoint
-from pipeline.data import load_test_data, save_images
+from data.dataset import load_test_data, save_images
 
 tf.enable_eager_execution()
 
