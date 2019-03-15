@@ -27,7 +27,7 @@ Project Organization
         ├── test.py        <- Run this to test
         │
         ├── data       <- Code for downloading or loading data  
-        │   ├── data.py
+        │   ├── data.py         <- Dataset class
         │   └── download_data.py
         │
         ├── models         <- Code for defining the network structure and loss functions
@@ -37,7 +37,7 @@ Project Organization
         │   └── losses.py
         │
         └── utils               <- Utility files
-            ├── options.py                 <- File for command line options
+            ├── options.py                 <- Class for command line options
             └── image_history_buffer.py
 
 --------
