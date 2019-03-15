@@ -62,8 +62,9 @@ class CycleGANModel(object):
             print("No checkpoint found, initializing model.")
 
     def set_input(self, input):
-        self.dataA = input["A"]
-        self.dataB = input["B"]
+        # Get next batches:
+        self.dataA = input["A"].get_next()
+        self.dataB = input["B"].get_next()
 
     def forward(self):
         # Gen output shape: (batch_size, img_size, img_size, 3)
