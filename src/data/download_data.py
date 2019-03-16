@@ -1,7 +1,3 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import os
 import argparse
 
@@ -15,10 +11,9 @@ def download_data(dataset_id, download_location):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset_id", type=str, default="horse2zebra", help="String identifying the dataset to download. For example, \
-        'horse2zebra', 'monet2photo', 'summer2winter_yosemite', 'apple2orange', etc")
+    parser.add_argument("--dataset_id", type=str, default="horse2zebra",help="String identifying the dataset to download. Available datasets are: apple2orange, summer2winter_yosemite, horse2zebra, monet2photo, cezanne2photo, ukiyoe2photo, vangogh2photo, maps, cityscapes, facades, iphone2dslr_flower, ae_photos")
+    parser.add_argument('--data_dir', required=True, help='download data to this directory')
     opt = parser.parse_args()
-    project_dir = os.path.abspath(os.path.join(os.getcwd(), os.pardir, os.pardir))
-    raw_data = os.path.join(project_dir, 'data', 'raw')
-    download_data(opt.dataset_id, download_location=raw_data)
+
     # TODO: Add code to check if dataset is already there.
+    download_data(opt.dataset_id, opt.data_dir)

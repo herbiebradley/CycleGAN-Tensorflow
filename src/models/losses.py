@@ -1,7 +1,3 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import tensorflow as tf
 
 def discriminator_loss(disc_of_real_output, disc_of_gen_output, label_value=1, use_lsgan=True):
@@ -29,16 +25,10 @@ def generator_loss(disc_of_gen_output, label_value=1, use_lsgan=True):
 
     return gen_loss
 
-def cycle_loss(data, reconstructed, norm='l1'):
-    if norm == 'l1':
-        loss = tf.reduce_mean(tf.abs(reconstructed - data))
-        return loss
-    else:
-        raise NotImplementedError #TODO: l2 norm option
+def cycle_loss(data, reconstructed):
+    loss = tf.reduce_mean(tf.abs(reconstructed - data))
+    return loss
 
-def identity_loss(data, identity, norm='l1'):
-    if norm == 'l1':
-        loss = tf.reduce_mean(tf.abs(identity - data))
-        return loss
-    else:
-        raise NotImplementedError #TODO: l2 norm option
+def identity_loss(data, identity):
+    loss = tf.reduce_mean(tf.abs(identity - data))
+    return loss
