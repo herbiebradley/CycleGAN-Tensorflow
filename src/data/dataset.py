@@ -1,7 +1,3 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import os
 
 import tensorflow as tf
@@ -38,13 +34,13 @@ def Dataset(object):
         # Throwing away the remainder allows the pipeline to report a fixed sized
         # batch size, aiding in model definition downstream.
         train_datasetA = train_datasetA.apply(tf.contrib.data.map_and_batch(lambda x: self.load_image(x),
-                                                                batch_size=self.opt.batch_size,
-                                                                num_parallel_calls=self.opt.num_threads,
-                                                                drop_remainder=True))
+                                                                            batch_size=self.opt.batch_size,
+                                                                            num_parallel_calls=self.opt.num_threads,
+                                                                            drop_remainder=True))
         train_datasetB = train_datasetB.apply(tf.contrib.data.map_and_batch(lambda x: self.load_image(x),
-                                                                batch_size=self.opt.batch_size,
-                                                                num_parallel_calls=self.opt.num_threads,
-                                                                drop_remainder=True))
+                                                                            batch_size=self.opt.batch_size,
+                                                                            num_parallel_calls=self.opt.num_threads,
+                                                                            drop_remainder=True))
         # Queue up a number of batches on CPU side:
         train_datasetA = train_datasetA.prefetch(buffer_size=self.opt.num_threads)
         train_datasetB = train_datasetB.prefetch(buffer_size=self.opt.num_threads)
@@ -61,13 +57,13 @@ def Dataset(object):
         test_datasetA = tf.data.Dataset.list_files(self.testA_path + os.sep + '*.jpg', shuffle=False)
         test_datasetB = tf.data.Dataset.list_files(self.testB_path + os.sep + '*.jpg', shuffle=False)
         test_datasetA = test_datasetA.apply(tf.contrib.data.map_and_batch(lambda x: self.load_image(x),
-                                                                batch_size=1,
-                                                                num_parallel_calls=self.opt.num_threads,
-                                                                drop_remainder=False))
+                                                                          batch_size=1,
+                                                                          num_parallel_calls=self.opt.num_threads,
+                                                                          drop_remainder=False))
         test_datasetB = test_datasetB.apply(tf.contrib.data.map_and_batch(lambda x: self.load_image(x),
-                                                                batch_size=1,
-                                                                num_parallel_calls=self.opt.num_threads,
-                                                                drop_remainder=False))
+                                                                          batch_size=1,
+                                                                          num_parallel_calls=self.opt.num_threads,
+                                                                          drop_remainder=False))
         test_datasetA = test_datasetA.prefetch(buffer_size=self.opt.num_threads)
         test_datasetB = test_datasetB.prefetch(buffer_size=self.opt.num_threads)
         if self.opt.gpu_id != -1:
@@ -90,17 +86,22 @@ def Dataset(object):
         image = (image - 0.5) * 2
         return image
 
-    def save_images(self, image_to_save, save_dir, image_index):
-        save_file = os.path.join(save_dir,'test' + str(image_index) + '.jpg')
-        # Reshape to get rid of batch size dimension in the tensor.
-        image = tf.reshape(image_to_save, shape=[self.opt.img_size, self.opt.img_size, 3])
-        # Scale from [-1, 1] to [0, 1).
-        image = (image * 0.5) + 0.5
-        # Convert to uint8 (range [0, 255]), saturate to avoid possible under/overflow.
-        image = tf.image.convert_image_dtype(image, dtype=tf.uint8, saturate=True)
-        # JPEG encode image into string Tensor.
-        image_string = tf.image.encode_jpeg(image, format='rgb', quality=95)
-        tf.write_file(filename=save_file, contents=image_string)
+    def save_images(self, test_images, index):
+        image_paths = []
+        image_paths.append(os.path.join(opt.results_dir, 'generatedA', 'test' + str(index) + '_real.jpg'))
+        image_paths.append(os.path.join(opt.results_dir, 'generatedA', 'test' + str(index) + '_fake.jpg'))
+        image_paths.append(os.path.join(opt.results_dir, 'generatedB', 'test' + str(index) + '_real.jpg'))
+        image_paths.append(os.path.join(opt.results_dir, 'generatedB', 'test' + str(index) + '_fake.jpg'))
+        for index in range(len(test_images)):
+            # Reshape to get rid of batch size dimension in the tensor.
+            image = tf.reshape(test_images[index], shape=[self.opt.img_size, self.opt.img_size, 3])
+            # Scale from [-1, 1] to [0, 1).
+            image = (image * 0.5) + 0.5
+            # Convert to uint8 (range [0, 255]), saturate to avoid possible under/overflow.
+            image = tf.image.convert_image_dtype(image, dtype=tf.uint8, saturate=True)
+            # JPEG encode image into string Tensor.
+            image_string = tf.image.encode_jpeg(image, format='rgb', quality=95)
+            tf.write_file(filename=image_paths[index], contents=image_string)
 
     def get_batches_per_epoch(self, opt):
         # floor(Avg dataset size / batch_size)

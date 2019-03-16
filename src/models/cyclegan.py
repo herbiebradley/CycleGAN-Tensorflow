@@ -1,7 +1,3 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import os
 
 import tensorflow as tf
@@ -30,7 +26,8 @@ class CycleGANModel(object):
             self.discB_buffer = ImageHistoryBuffer(opt)
         # Restore latest checkpoint:
         self.initialize_checkpoint()
-        self.restore_checkpoint()
+        if not opt.training or opt.load_checkpoint:
+            self.restore_checkpoint()
 
     def initialize_checkpoint(self):
         if self.opt.training:
@@ -53,13 +50,11 @@ class CycleGANModel(object):
         if self.opt.load_checkpoint and latest_checkpoint is not None:
             # Use assert_existing_objects_matched() instead of asset_consumed() here because
             # optimizers aren't initialized fully until first gradient update.
-            # This will throw an exception if checkpoint does not restore the model weights.
+            # This will throw an exception if the checkpoint does not restore the model weights.
             self.checkpoint.restore(latest_checkpoint).assert_existing_objects_matched()
             print("Checkpoint restored from ", latest_checkpoint)
-            # Uncomment below to print full list of checkpoint metadata.
-            #print(tf.contrib.checkpoint.object_metadata(latest_checkpoint))
         else:
-            print("No checkpoint found, initializing model.")
+            print("Failed to restore checkpoint, initializing model.")
 
     def set_input(self, input):
         # Get next batches:
@@ -106,8 +101,8 @@ class CycleGANModel(object):
         genA2B_loss = generator_loss(self.discB(self.fakeB))
         genB2A_loss = generator_loss(self.discA(self.fakeA))
 
-        cyc_lossA = cycle_consistency_loss(self.dataA, self.reconstructedA) * opt.cyc_lambda
-        cyc_lossB = cycle_consistency_loss(self.dataB, self.reconstructedB) * opt.cyc_lambda
+        cyc_lossA = cycle_loss(self.dataA, self.reconstructedA) * opt.cyc_lambda
+        cyc_lossB = cycle_loss(self.dataB, self.reconstructedB) * opt.cyc_lambda
 
         gen_loss = genA2B_loss + genB2A_loss + cyc_lossA + cyc_lossB + id_lossA + id_lossB
         return gen_loss
@@ -126,8 +121,8 @@ class CycleGANModel(object):
         gen_variables = [self.genA2B.variables, self.genB2A.variables]
         gen_gradients = genTape.gradient(gen_loss, gen_variables)
         self.gen_opt.apply_gradients(list(zip(gen_gradients[0], gen_variables[0])) \
-                                + list(zip(gen_gradients[1], gen_variables[1])),
-                                global_step=self.global_step)
+                                     + list(zip(gen_gradients[1], gen_variables[1])),
+                                     global_step=self.global_step)
 
         for net in (self.discA, self.discB):
             for layer in net.layers:
@@ -142,14 +137,19 @@ class CycleGANModel(object):
         discA_gradients = discTape.gradient(discA_loss, self.discA.variables)
         discB_gradients = discTape.gradient(discB_loss, self.discB.variables)
         self.disc_opt.apply_gradients(zip(discA_gradients, self.discA.variables),
-                                                    global_step=self.global_step)
+                                      global_step=self.global_step)
         self.disc_opt.apply_gradients(zip(discB_gradients, self.discB.variables),
-                                                    global_step=self.global_step)
+                                      global_step=self.global_step)
 
     def save_model(self):
         checkpoint_prefix = os.path.join(self.opt.save_dir, 'checkpoints', 'ckpt')
         checkpoint_path = self.checkpoint.save(file_prefix=checkpoint_prefix)
         print("Checkpoint saved at ", checkpoint_path)
+
+    def test(self):
+        self.fakeA = self.genB2A(self.dataB)
+        self.fakeB = self.genA2B(self.dataA)
+        return [self.dataA, self.fakeA, self.dataB, self.fakeB]
 
     def update_learning_rate(self, batches_per_epoch):
         new_lr = self._get_learning_rate(batches_per_epoch)
