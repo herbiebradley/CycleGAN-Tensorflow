@@ -10,7 +10,7 @@ from models.cyclegan import CycleGANModel
 tf.enable_eager_execution()
 
 if __name__ == "__main__":
-    opt = Options(training=True)
+    opt = Options().parse(training=True)
     # TODO: Test if this is always on CPU:
     dataset = Dataset(opt)
     model = CycleGANModel(opt)

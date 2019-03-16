@@ -2,7 +2,7 @@ import os
 
 import tensorflow as tf
 
-def Dataset(object):
+class Dataset(object):
 
     def __init__(self, opt):
         self.opt = opt

@@ -90,7 +90,7 @@ class Decoder(tf.keras.Model):
             self.norm = False
             self.dropout = tf.keras.layers.Dropout(opt.dropout_prob)
         if self.resize_conv:
-            self.upsample = tf.keras.layers.Upsampling2D(size=(2, 2), interpolation='nearest')
+            self.upsample = tf.keras.layers.UpSampling2D(size=(2, 2), interpolation='nearest')
             self.conv1 = tf.keras.layers.Conv2D(opt.ngf * 2, kernel_size=3, strides=1,
                                                 kernel_initializer=tf.truncated_normal_initializer(stddev=opt.init_scale))
             self.conv2 = tf.keras.layers.Conv2D(opt.ngf, kernel_size=3, strides=1,

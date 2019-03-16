@@ -3,12 +3,13 @@ import multiprocessing
 
 class Options(object):
 
-    def __init__(self, training=True):
+    def __init__(self):
         parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
         # basic options
         parser.add_argument('--data_dir', required=True, help='path to directory where the dataset is stored, should have subfolders trainA, trainB, testA, testB')
         parser.add_argument('--save_dir', required=True, help='checkpoints and Tensorboard summaries are saved here')
         parser.add_argument('--gpu_id', type=str, default='0', help='gpu id to run model on, use -1 for CPU, multigpu not supported')
+        parser.add_argument('--training', action='store_false', help='boolean for training/testing')
         # model options
         parser.add_argument('--ngf', type=int, default=64, help='number of gen filters in the first conv layer')
         parser.add_argument('--ndf', type=int, default=64, help='number of disc filters in the first conv layer')
@@ -22,21 +23,23 @@ class Options(object):
         cpu_count = multiprocessing.cpu_count()
         parser.add_argument('--num_threads', type=int, default=cpu_count, help='number of CPU threads to use for loading data')
         parser.add_argument('--img_size', type=int, default=256, help='input image size')
+        self.parser = parser
+
+    def parse(self, training):
+        opt, _ = self.parser.parse_known_args()
         # get training/testing options
         if training:
-            parser = self.get_train_options(parser)
+             self.parser.set_defaults(training=True)
+             self.parser = self.get_train_options(self.parser)
         else:
-            parser = self.get_test_options(parser)
+             self.parser = self.get_test_options(self.parser)
 
-        self.parser = parser
-        opt = parser.parse_args()
-
+        opt = self.parser.parse_args()
         self.print_options(opt)
         return opt
 
     def get_train_options(self, parser):
         # training specific options
-        parser.add_argument('--training', action='store_true', help='boolean for training/testing')
         parser.add_argument('--load_checkpoint', action='store_true', help='if true, loads latest checkpoint')
         parser.add_argument('--save_epoch_freq', type=int, default=5, help='frequency of saving checkpoints at the end of epochs')
         parser.add_argument('--summary_freq', type=int, default=100, help='frequency of saving saving tensorboard summaries in training steps')
@@ -54,7 +57,6 @@ class Options(object):
 
     def get_test_options(self, parser):
         # test specific options
-        parser.add_argument('--training', action='store_false', help='boolean for training/testing')
         parser.add_argument('--results_dir', required=True, help='directory to save result images')
         parser.add_argument('--num_test', type=int, default=50, help='number of test images to generate')
         return parser
@@ -65,7 +67,7 @@ class Options(object):
         for option, value in sorted(vars(opt).items()):
             comment = ''
             default = self.parser.get_default(option)
-            if v != default:
+            if value != default:
                 comment = '\t[default: %s]' % str(default)
             message += '{:>25}: {:<30}{}\n'.format(str(option), str(value), comment)
         message += '----------------- End -------------------'
