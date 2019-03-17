@@ -14,10 +14,6 @@ Project Organization
     ├── LICENSE
     ├── Makefile           <- Makefile with commands like `make data` or `make train`
     ├── README.md
-    ├── datasets           <- All datasets are stored here
-    │
-    ├── saved_models       <- Checkpointed models and tensorboard summaries
-    │
     ├── setup.py           <- makes project pip installable (pip install -e .) so src can be imported
     └── src                <- Source code for use in this project
         ├── __init__.py    <- Makes src a Python module
