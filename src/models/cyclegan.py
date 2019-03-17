@@ -18,8 +18,8 @@ class CycleGANModel(object):
             self.discA = Discriminator(opt)
             self.discB = Discriminator(opt)
             self.learning_rate = tf.contrib.eager.Variable(opt.lr, dtype=tf.float32, name='learning_rate')
-            self.disc_opt = tf.train.AdamOptimizer(self.learning_rate, beta1=opt.beta1)
-            self.gen_opt = tf.train.AdamOptimizer(self.learning_rate, beta1=opt.beta1)
+            self.disc_optim = tf.train.AdamOptimizer(self.learning_rate, beta1=opt.beta1)
+            self.gen_optim = tf.train.AdamOptimizer(self.learning_rate, beta1=opt.beta1)
             self.global_step = tf.train.get_or_create_global_step()
             # Initialize history buffers:
             self.discA_buffer = ImageHistoryBuffer(opt)
@@ -35,8 +35,8 @@ class CycleGANModel(object):
                                                   discB=self.discB,
                                                   genA2B=self.genA2B,
                                                   genB2A=self.genB2A,
-                                                  disc_opt=self.disc_opt,
-                                                  gen_opt=self.gen_opt,
+                                                  disc_optim=self.disc_optim,
+                                                  gen_optim=self.gen_optim,
                                                   learning_rate=self.learning_rate,
                                                   global_step=self.global_step)
         else:
@@ -89,24 +89,24 @@ class CycleGANModel(object):
         return discB_loss
 
     def backward_G(self):
-        if opt.identity_lambda > 0:
+        if self.opt.identity_lambda > 0:
             identityA = self.genB2A(self.dataA)
-            id_lossA = identity_loss(self.dataA, identityA) * opt.cyc_lambda * opt.identity_lambda
+            id_lossA = identity_loss(self.dataA, identityA) * self.opt.cyc_lambda * self.opt.identity_lambda
 
             identityB = self.genA2B(self.dataB)
-            id_lossB = identity_loss(self.dataB, identityB) * opt.cyc_lambda * opt.identity_lambda
+            id_lossB = identity_loss(self.dataB, identityB) * self.opt.cyc_lambda * self.opt.identity_lambda
         else:
             id_lossA, id_lossB = 0, 0
 
         genA2B_loss = generator_loss(self.discB(self.fakeB))
         genB2A_loss = generator_loss(self.discA(self.fakeA))
 
-        cyc_lossA = cycle_loss(self.dataA, self.reconstructedA) * opt.cyc_lambda
-        cyc_lossB = cycle_loss(self.dataB, self.reconstructedB) * opt.cyc_lambda
+        cyc_lossA = cycle_loss(self.dataA, self.reconstructedA) * self.opt.cyc_lambda
+        cyc_lossB = cycle_loss(self.dataB, self.reconstructedB) * self.opt.cyc_lambda
 
         gen_loss = genA2B_loss + genB2A_loss + cyc_lossA + cyc_lossB + id_lossA + id_lossB
         return gen_loss
-
+    
     def optimize_parameters(self):
         for net in (self.discA, self.discB):
             for layer in net.layers:
@@ -120,7 +120,7 @@ class CycleGANModel(object):
 
         gen_variables = [self.genA2B.variables, self.genB2A.variables]
         gen_gradients = genTape.gradient(gen_loss, gen_variables)
-        self.gen_opt.apply_gradients(list(zip(gen_gradients[0], gen_variables[0])) \
+        self.gen_optim.apply_gradients(list(zip(gen_gradients[0], gen_variables[0])) \
                                      + list(zip(gen_gradients[1], gen_variables[1])),
                                      global_step=self.global_step)
 
@@ -136,9 +136,9 @@ class CycleGANModel(object):
 
         discA_gradients = discTape.gradient(discA_loss, self.discA.variables)
         discB_gradients = discTape.gradient(discB_loss, self.discB.variables)
-        self.disc_opt.apply_gradients(zip(discA_gradients, self.discA.variables),
+        self.disc_optim.apply_gradients(zip(discA_gradients, self.discA.variables),
                                       global_step=self.global_step)
-        self.disc_opt.apply_gradients(zip(discB_gradients, self.discB.variables),
+        self.disc_optim.apply_gradients(zip(discB_gradients, self.discB.variables),
                                       global_step=self.global_step)
 
     def save_model(self):
@@ -158,5 +158,5 @@ class CycleGANModel(object):
     def _get_learning_rate(self, batches_per_epoch):
         global_step = self.global_step.numpy() / 3 # /3 because there are 3 gradient updates per batch.
         total_epochs = global_step // batches_per_epoch
-        learning_rate_lambda = 1.0 - max(0, total_epochs - opt.niter) / float(opt.niter_decay + 1)
+        learning_rate_lambda = 1.0 - max(0, total_epochs - self.opt.niter) / float(self.opt.niter_decay + 1)
         return self.opt.lr * max(0, learning_rate_lambda)

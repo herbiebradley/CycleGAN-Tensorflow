@@ -5,7 +5,7 @@ class Encoder(tf.keras.Model):
     def __init__(self, opt):
         super(Encoder, self).__init__()
         self.use_dropout = opt.use_dropout
-        self.norm = opt.norm
+        self.norm = opt.instance_norm
         self.training = opt.training
         if self.use_dropout:
             self.norm = False # We don't want to combine instance normalisation and dropout.
@@ -48,7 +48,7 @@ class Residual(tf.keras.Model):
     def __init__(self, opt):
         super(Residual, self).__init__()
         self.use_dropout = opt.use_dropout
-        self.norm = opt.norm
+        self.norm = opt.instance_norm
         self.training = opt.training
         if self.use_dropout:
             self.norm = False
@@ -83,14 +83,15 @@ class Decoder(tf.keras.Model):
     def __init__(self, opt):
         super(Decoder, self).__init__()
         self.use_dropout = opt.use_dropout
-        self.norm = opt.norm
+        self.norm = opt.instance_norm
         self.training = opt.training
         self.resize_conv = opt.resize_conv
         if self.use_dropout:
             self.norm = False
             self.dropout = tf.keras.layers.Dropout(opt.dropout_prob)
         if self.resize_conv:
-            self.upsample = tf.keras.layers.UpSampling2D(size=(2, 2), interpolation='nearest')
+            # Nearest neighbour upsampling:
+            self.upsample = tf.keras.layers.UpSampling2D(size=(2, 2))
             self.conv1 = tf.keras.layers.Conv2D(opt.ngf * 2, kernel_size=3, strides=1,
                                                 kernel_initializer=tf.truncated_normal_initializer(stddev=opt.init_scale))
             self.conv2 = tf.keras.layers.Conv2D(opt.ngf, kernel_size=3, strides=1,
@@ -194,7 +195,7 @@ class Discriminator(tf.keras.Model):
 
     def __init__(self, opt):
         super(Discriminator, self).__init__()
-        self.norm = opt.norm
+        self.norm = opt.instance_norm
         self.conv1 = tf.keras.layers.Conv2D(opt.ndf, kernel_size=4, strides=2, padding='same',
                                             kernel_initializer=tf.truncated_normal_initializer(stddev=opt.init_scale))
         self.conv2 = tf.keras.layers.Conv2D(opt.ndf * 2, kernel_size=4, strides=2, padding='same',

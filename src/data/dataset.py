@@ -86,22 +86,21 @@ class Dataset(object):
         image = (image - 0.5) * 2
         return image
 
-    def save_images(self, test_images, index):
-        image_paths = []
-        image_paths.append(os.path.join(opt.results_dir, 'generatedA', 'test' + str(index) + '_real.jpg'))
-        image_paths.append(os.path.join(opt.results_dir, 'generatedA', 'test' + str(index) + '_fake.jpg'))
-        image_paths.append(os.path.join(opt.results_dir, 'generatedB', 'test' + str(index) + '_real.jpg'))
-        image_paths.append(os.path.join(opt.results_dir, 'generatedB', 'test' + str(index) + '_fake.jpg'))
-        for index in range(len(test_images)):
+    def save_images(self, test_images, image_index):
+        image_paths = [(os.path.join(opt.results_dir, 'generatedA', 'test' + str(image_index) + '_real.jpg'),
+                        os.path.join(opt.results_dir, 'generatedA', 'test' + str(image_index) + '_fake.jpg'),
+                        os.path.join(opt.results_dir, 'generatedB', 'test' + str(image_index) + '_real.jpg'),
+                        os.path.join(opt.results_dir, 'generatedB', 'test' + str(image_index) + '_fake.jpg')]
+        for i in range(len(test_images)):
             # Reshape to get rid of batch size dimension in the tensor.
-            image = tf.reshape(test_images[index], shape=[self.opt.img_size, self.opt.img_size, 3])
+            image = tf.reshape(test_images[i], shape=[self.opt.img_size, self.opt.img_size, 3])
             # Scale from [-1, 1] to [0, 1).
             image = (image * 0.5) + 0.5
             # Convert to uint8 (range [0, 255]), saturate to avoid possible under/overflow.
             image = tf.image.convert_image_dtype(image, dtype=tf.uint8, saturate=True)
             # JPEG encode image into string Tensor.
             image_string = tf.image.encode_jpeg(image, format='rgb', quality=95)
-            tf.write_file(filename=image_paths[index], contents=image_string)
+            tf.write_file(filename=image_paths[i], contents=image_string)
 
     def get_batches_per_epoch(self, opt):
         # floor(Avg dataset size / batch_size)

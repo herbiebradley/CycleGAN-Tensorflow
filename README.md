@@ -5,7 +5,7 @@ A Tensorflow implementation of [Unpaired Image-to-Image Translation using Cycle-
 
 Requirements:
 
-- Tensorflow 1.11.0
+- Tensorflow 1.11
 - Python 3.6
 
 Project Organization

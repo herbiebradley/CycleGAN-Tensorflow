@@ -49,5 +49,5 @@ if __name__ == "__main__":
                 model.save_model()
             print("Global Training Step: ", global_step.numpy() // 3)
             # TODO: Better progress prints (epoch bar filling up?)
-            print ("Time taken for total epoch {} is {} sec\n".format(global_step.numpy() \
+            print("Time taken for total epoch {} is {} sec\n".format(global_step.numpy() \
                                             // (3 * batches_per_epoch), time.time()-start))

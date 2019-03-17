@@ -19,8 +19,8 @@ if __name__ == "__main__":
 
     with tf.device(device):
         start = time.time()
-        for index in range(opt.num_test):
+        for image_index in range(opt.num_test):
             model.set_input(dataset.data)
             test_images = model.test()
-            dataset.save_images(test_images, index=index)
+            dataset.save_images(test_images, image_index)
         print("Generating {} test images for both datasets finished in {} sec\n".format(opt.num_test, time.time()-start))
