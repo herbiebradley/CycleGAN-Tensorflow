@@ -3,7 +3,11 @@ import os
 import tensorflow as tf
 
 class Dataset(object):
-
+    """
+    Fully optimised tf.data loader.
+    For more info about the optimal way to use tf.data, see
+    https://www.reddit.com/r/MachineLearning/comments/a08fx6/d_why_tfdata_is_so_much_better_than_feed_dict_and/
+    """
     def __init__(self, opt):
         self.opt = opt
         self.gpu_id = "/gpu:" + str(self.opt.gpu_id)
@@ -67,8 +71,8 @@ class Dataset(object):
         test_datasetA = test_datasetA.prefetch(buffer_size=self.opt.num_threads)
         test_datasetB = test_datasetB.prefetch(buffer_size=self.opt.num_threads)
         if self.opt.gpu_id != -1:
-            train_datasetA = train_datasetA.apply(tf.contrib.data.prefetch_to_device(self.gpu_id, buffer_size=1))
-            train_datasetB = train_datasetB.apply(tf.contrib.data.prefetch_to_device(self.gpu_id, buffer_size=1))
+            test_datasetA = test_datasetA.apply(tf.contrib.data.prefetch_to_device(self.gpu_id, buffer_size=1))
+            test_datasetB = test_datasetB.apply(tf.contrib.data.prefetch_to_device(self.gpu_id, buffer_size=1))
         return iter(test_datasetA), iter(test_datasetB)
 
     def load_image(self, image_file):
@@ -87,10 +91,10 @@ class Dataset(object):
         return image
 
     def save_images(self, test_images, image_index):
-        image_paths = [(os.path.join(opt.results_dir, 'generatedA', 'test' + str(image_index) + '_real.jpg'),
-                        os.path.join(opt.results_dir, 'generatedA', 'test' + str(image_index) + '_fake.jpg'),
-                        os.path.join(opt.results_dir, 'generatedB', 'test' + str(image_index) + '_real.jpg'),
-                        os.path.join(opt.results_dir, 'generatedB', 'test' + str(image_index) + '_fake.jpg')]
+        image_paths = [os.path.join(self.opt.results_dir, 'generatedA', 'test' + str(image_index) + '_real.jpg'),
+                        os.path.join(self.opt.results_dir, 'generatedA', 'test' + str(image_index) + '_fake.jpg'),
+                        os.path.join(self.opt.results_dir, 'generatedB', 'test' + str(image_index) + '_real.jpg'),
+                        os.path.join(self.opt.results_dir, 'generatedB', 'test' + str(image_index) + '_fake.jpg')]
         for i in range(len(test_images)):
             # Reshape to get rid of batch size dimension in the tensor.
             image = tf.reshape(test_images[i], shape=[self.opt.img_size, self.opt.img_size, 3])
@@ -99,8 +103,9 @@ class Dataset(object):
             # Convert to uint8 (range [0, 255]), saturate to avoid possible under/overflow.
             image = tf.image.convert_image_dtype(image, dtype=tf.uint8, saturate=True)
             # JPEG encode image into string Tensor.
-            image_string = tf.image.encode_jpeg(image, format='rgb', quality=95)
-            tf.write_file(filename=image_paths[i], contents=image_string)
+            with tf.device("/cpu:0"):
+                image_string = tf.image.encode_jpeg(image, format='rgb', quality=95)
+                tf.write_file(filename=image_paths[i], contents=image_string)
 
     def get_batches_per_epoch(self, opt):
         # floor(Avg dataset size / batch_size)

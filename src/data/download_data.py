@@ -3,6 +3,9 @@ import argparse
 
 import tensorflow as tf
 
+"""
+This script downloads the cyclegan datasets, but will overwrite if dataset is already there.
+"""
 def download_data(dataset_id, download_location):
     path_to_zip = tf.keras.utils.get_file(dataset_id + '.zip', cache_subdir=download_location,
         origin='https://people.eecs.berkeley.edu/~taesung_park/CycleGAN/datasets/' + dataset_id + '.zip',
@@ -15,5 +18,4 @@ if __name__ == "__main__":
     parser.add_argument('--data_dir', required=True, help='download data to this directory')
     opt = parser.parse_args()
 
-    # TODO: Add code to check if dataset is already there.
     download_data(opt.dataset_id, opt.data_dir)

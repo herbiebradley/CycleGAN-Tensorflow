@@ -1,5 +1,9 @@
 import tensorflow as tf
 
+"""
+This file defines the CycleGAN generator and discriminator.
+Options are included for extra skips, instance norm, dropout, and resize conv instead of deconv
+"""
 class Encoder(tf.keras.Model):
 
     def __init__(self, opt):

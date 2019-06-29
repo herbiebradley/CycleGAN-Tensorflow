@@ -2,7 +2,11 @@ import argparse
 import multiprocessing
 
 class Options(object):
-
+    """
+    Options class - defines all train/test options and prints them out as a summary.
+    Inspired by
+    https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/options/base_options.py
+    """
     def __init__(self):
         parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
         # basic options

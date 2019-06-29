@@ -8,10 +8,12 @@ from data.dataset import Dataset
 from models.cyclegan import CycleGANModel
 
 tf.enable_eager_execution()
-
+"""
+Run this module for training.
+Required args: --data_dir, --save_dir, --results_dir
+"""
 if __name__ == "__main__":
     opt = Options().parse(training=True)
-    # TODO: Test if this is always on CPU:
     dataset = Dataset(opt)
     model = CycleGANModel(opt)
 
@@ -31,12 +33,12 @@ if __name__ == "__main__":
                         model.set_input(dataset.data)
                         model.optimize_parameters()
                         # Summaries for Tensorboard:
-                        #tf.contrib.summary.scalar('loss/genA2B', genA2B_loss_basic)
-                        #tf.contrib.summary.scalar('loss/genB2A', genB2A_loss_basic)
-                        #tf.contrib.summary.scalar('loss/discA', discA_loss)
-                        #tf.contrib.summary.scalar('loss/discB', discB_loss)
-                        #tf.contrib.summary.scalar('loss/cyc', cyc_loss)
-                        #tf.contrib.summary.scalar('loss/identity', id_loss)
+                        tf.contrib.summary.scalar('loss/genA2B', model.genA2B_loss)
+                        tf.contrib.summary.scalar('loss/genB2A', model.genB2A_loss)
+                        tf.contrib.summary.scalar('loss/discA', model.discA_loss)
+                        tf.contrib.summary.scalar('loss/discB', model.discB_loss)
+                        tf.contrib.summary.scalar('loss/cyc', model.cyc_lossA + model.cyc_lossB)
+                        tf.contrib.summary.scalar('loss/identity', model.id_lossA + model.id_lossB)
                         tf.contrib.summary.scalar('learning_rate', model.learning_rate)
                         tf.contrib.summary.image('A/generated', model.fakeA)
                         tf.contrib.summary.image('A/reconstructed', model.reconstructedA)
@@ -48,6 +50,5 @@ if __name__ == "__main__":
             if epoch % opt.save_epoch_freq == 0:
                 model.save_model()
             print("Global Training Step: ", global_step.numpy() // 3)
-            # TODO: Better progress prints (epoch bar filling up?)
             print("Time taken for total epoch {} is {} sec\n".format(global_step.numpy() \
                                             // (3 * batches_per_epoch), time.time()-start))

@@ -7,7 +7,11 @@ from models.networks import Generator, Discriminator
 from utils.image_history_buffer import ImageHistoryBuffer
 
 class CycleGANModel(object):
-
+    """
+    CycleGAN model class, responsible for checkpointing and the forward and backward pass.
+    Inspired by:
+    https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/models/cycle_gan_model.py
+    """
     def __init__(self, opt):
         self.opt = opt
 
@@ -41,13 +45,12 @@ class CycleGANModel(object):
                                                   global_step=self.global_step)
         else:
             self.checkpoint = tf.train.Checkpoint(genA2B=self.genA2B,
-                                                  genB2A=self.genB2A,
-                                                  global_step=self.global_step)
+                                                  genB2A=self.genB2A)
 
     def restore_checkpoint(self):
         checkpoint_dir = os.path.join(self.opt.save_dir, 'checkpoints')
         latest_checkpoint = tf.train.latest_checkpoint(checkpoint_dir)
-        if self.opt.load_checkpoint and latest_checkpoint is not None:
+        if (not self.opt.training or self.opt.load_checkpoint) and latest_checkpoint is not None:
             # Use assert_existing_objects_matched() instead of asset_consumed() here because
             # optimizers aren't initialized fully until first gradient update.
             # This will throw an exception if the checkpoint does not restore the model weights.
@@ -69,50 +72,61 @@ class CycleGANModel(object):
         self.fakeA = self.genB2A(self.dataB)
         self.reconstructedB = self.genA2B(self.fakeA)
 
-    def backward_D(self, netD, real, fake):
+    def backward_D(self, netD, real, fake, tape):
         # Disc output shape: (batch_size, img_size/8, img_size/8, 1)
         pred_real = netD(real)
         pred_fake = netD(tf.stop_gradient(fake)) # Detaches generator from D
-        disc_loss = discriminator_loss(pred_real, pred_fake)
+        disc_loss = discriminator_loss(pred_real, pred_fake, self.opt.gan_mode)
+        if self.opt.gan_mode == 'wgangp': # GRADIENT PENALTY
+            with tape.stop_recording():
+                epsilon = tf.random_uniform(shape=[BATCH_SIZE, 1, 1, 1], minval=0., maxval=1.)
+                X_hat = real + epsilon * (fake - real)
+                def gp_func(X_hat):
+                    return netD(X_hat)
+                gp_grad_func = tf.contrib.eager.gradients_function(gp_func)
+                grad_critic_X_hat = gp_grad_func(X_hat)[0]
+            slopes = tf.sqrt(tf.reduce_sum(tf.square(grad_critic_X_hat), axis=[1, 2, 3]))
+            gradient_penalty = tf.reduce_mean((slopes - 1.) ** 2)
+            disc_loss += 10 * gradient_penalty # Lambda = 10 in gradient penalty
         return disc_loss
 
-    def backward_discA(self):
+    def backward_discA(self, tape):
         # Sample from history buffer of 50 images:
         fake_A = self.discA_buffer.query(self.fakeA)
-        discA_loss = self.backward_D(self.discA, self.dataA, fake_A)
-        return discA_loss
+        self.discA_loss = self.backward_D(self.discA, self.dataA, fake_A, tape)
+        return self.discA_loss
 
-    def backward_discB(self):
+    def backward_discB(self, tape):
         # Sample from history buffer of 50 images:
         fake_B = self.discB_buffer.query(self.fakeB)
-        discB_loss = self.backward_D(self.discB, self.dataB, fake_B)
-        return discB_loss
+        self.discB_loss = self.backward_D(self.discB, self.dataB, fake_B, tape)
+        return self.discB_loss
 
     def backward_G(self):
         if self.opt.identity_lambda > 0:
             identityA = self.genB2A(self.dataA)
-            id_lossA = identity_loss(self.dataA, identityA) * self.opt.cyc_lambda * self.opt.identity_lambda
+            self.id_lossA = identity_loss(self.dataA, identityA) * self.opt.cyc_lambda * self.opt.identity_lambda
 
             identityB = self.genA2B(self.dataB)
-            id_lossB = identity_loss(self.dataB, identityB) * self.opt.cyc_lambda * self.opt.identity_lambda
+            self.id_lossB = identity_loss(self.dataB, identityB) * self.opt.cyc_lambda * self.opt.identity_lambda
         else:
             id_lossA, id_lossB = 0, 0
 
-        genA2B_loss = generator_loss(self.discB(self.fakeB))
-        genB2A_loss = generator_loss(self.discA(self.fakeA))
+        self.genA2B_loss = generator_loss(self.discB(self.dataB), self.discB(self.fakeB), self.opt.gan_mode)
+        self.genB2A_loss = generator_loss(self.discA(self.dataA), self.discA(self.fakeA), self.opt.gan_mode)
 
-        cyc_lossA = cycle_loss(self.dataA, self.reconstructedA) * self.opt.cyc_lambda
-        cyc_lossB = cycle_loss(self.dataB, self.reconstructedB) * self.opt.cyc_lambda
+        self.cyc_lossA = cycle_loss(self.dataA, self.reconstructedA) * self.opt.cyc_lambda
+        self.cyc_lossB = cycle_loss(self.dataB, self.reconstructedB) * self.opt.cyc_lambda
 
-        gen_loss = genA2B_loss + genB2A_loss + cyc_lossA + cyc_lossB + id_lossA + id_lossB
+        gen_loss = self.genA2B_loss + self.genB2A_loss + self.cyc_lossA + self.cyc_lossB + self.id_lossA + self.id_lossB
         return gen_loss
-    
+
     def optimize_parameters(self):
         for net in (self.discA, self.discB):
             for layer in net.layers:
                 layer.trainable = False
 
-        with tf.GradientTape() as genTape: # Upgrade to 1.12 for watching?
+        with tf.GradientTape() as genTape:
             genTape.watch([self.genA2B.variables, self.genB2A.variables])
 
             self.forward()
@@ -128,11 +142,11 @@ class CycleGANModel(object):
             for layer in net.layers:
                 layer.trainable = True
 
-        with tf.GradientTape(persistent=True) as discTape: # Try 2 disc tapes?
+        with tf.GradientTape(persistent=True) as discTape:
             discTape.watch([self.discA.variables, self.discB.variables])
-
-            discA_loss = self.backward_discA()
-            discB_loss = self.backward_discB()
+            self.forward()
+            discA_loss = self.backward_discA(discTape)
+            discB_loss = self.backward_discB(discTape)
 
         discA_gradients = discTape.gradient(discA_loss, self.discA.variables)
         discB_gradients = discTape.gradient(discB_loss, self.discB.variables)

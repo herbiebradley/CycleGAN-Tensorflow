@@ -8,10 +8,6 @@ Requirements:
 - Tensorflow 1.11
 - Python 3.6
 
-Note that the eval_cityscapes folder allows you to get FCN scores if you have the
-full cityscapes dataset and caffe installed; folder copied from:
-https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/tree/master/scripts/eval_cityscapes
-
 Project Organization
 ------------
 
