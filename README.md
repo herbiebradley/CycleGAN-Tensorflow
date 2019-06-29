@@ -8,13 +8,18 @@ Requirements:
 - Tensorflow 1.11
 - Python 3.6
 
+Note that the eval_cityscapes folder allows you to get FCN scores if you have the
+full cityscapes dataset and caffe installed; folder copied from:
+https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/tree/master/scripts/eval_cityscapes
+
 Project Organization
 ------------
 
-    ├── LICENSE
-    ├── Makefile           <- Makefile with commands like `make data` or `make train`
     ├── README.md
+    ├── Makefile           <- Makefile with commands like `make data` or `make train`
     ├── setup.py           <- makes project pip installable (pip install -e .) so src can be imported
+    ├── LICENSE
+    ├── eval_cityscapes    <- This contains scripts for getting the experiment results.
     └── src                <- Source code for use in this project
         ├── __init__.py    <- Makes src a Python module
         │
@@ -22,18 +27,18 @@ Project Organization
         │
         ├── test.py        <- Run this to test
         │
-        ├── data       <- Code for downloading or loading data  
+        ├── data           <- Code for downloading or loading data  
         │   ├── data.py         <- Dataset class
         │   └── download_data.py
         │
         ├── models         <- Code for defining the network structure and loss functions
         │   ├── __init__.py
-        │   ├── network.py
         │   ├── cyclegan.py     <- CycleGAN model class
+        │   ├── networks.py
         │   └── losses.py
         │
-        └── utils               <- Utility files
-            ├── options.py                 <- Class for command line options
+        └── utils          <- Utility files
+            ├── options.py      <- Class for command line options
             └── image_history_buffer.py
 
 --------
