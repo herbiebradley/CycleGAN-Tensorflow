@@ -28,7 +28,6 @@ Project Organization
         │   └── download_data.py
         │
         ├── models         <- Code for defining the network structure and loss functions
-        │   ├── __init__.py
         │   ├── cyclegan.py     <- CycleGAN model class
         │   ├── networks.py
         │   └── losses.py
