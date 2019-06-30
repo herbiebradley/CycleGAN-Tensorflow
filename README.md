@@ -8,6 +8,8 @@ Requirements:
 - Tensorflow 1.11
 - Python 3.6
 
+Thanks to the original authors PyTorch implementation for inspiration: https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix
+
 Project Organization
 ------------
 
@@ -37,4 +39,4 @@ Project Organization
 
 --------
 
-<p><small>Project based on the <a target="_blank" href="https://drivendata.github.io/cookiecutter-data-science/">cookiecutter data science project template</a>. #cookiecutterdatascience</small></p>
+<p><small>Project organisation based on the <a target="_blank" href="https://drivendata.github.io/cookiecutter-data-science/">cookiecutter data science project template</a>. #cookiecutterdatascience</small></p>
