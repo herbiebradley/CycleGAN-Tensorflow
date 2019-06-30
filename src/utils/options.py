@@ -19,7 +19,7 @@ class Options(object):
         parser.add_argument('--instance_norm', action='store_false', help='if true, uses instance normalisation after each conv layer in D and G')
         parser.add_argument('--init_scale', type=float, default=0.02, help='stddev for weight initialisation; small variance helps prevent colour inversion.')
         parser.add_argument('--gen_skip', action='store_true', help='if true, use skip connection from first residual block to last in generator')
-        parser.add_argument('--resize_conv', action='store_true', help='if true, replace conv2dtranspose in generator with upsample -> conv2d')
+        parser.add_argument('--resize_conv', action='store_false', help='if true, replace conv2dtranspose in generator with upsample -> conv2d')
         parser.add_argument('--use_dropout', action='store_true', help='if true, use dropout for the generator')
         parser.add_argument('--dropout_prob', type=float, default=0.5, help='dropout probability for all layers in generator')
         # dataset options
@@ -56,6 +56,7 @@ class Options(object):
         parser.add_argument('--training', action='store_false', help='boolean for training/testing')
         parser.add_argument('--load_checkpoint', action='store_false', help='if true, loads latest checkpoint')
         parser.add_argument('--save_epoch_freq', type=int, default=5, help='frequency of saving checkpoints at the end of epochs')
+        parser.add_argument('--save_summaries', action='store_false', help='if true, stores tensorboard summaries. Turn off to speed up training significantly')
         parser.add_argument('--summary_freq', type=int, default=100, help='frequency of saving saving tensorboard summaries in training steps')
         parser.add_argument('--epochs', type=int, default=200, help='number of epochs to train the model; learning rate decays to 0 by epoch 200')
         parser.add_argument('--batch_size', type=int, default=1, help='input batch size')

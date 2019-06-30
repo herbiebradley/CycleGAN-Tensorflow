@@ -10,7 +10,7 @@ from models.cyclegan import CycleGANModel
 tf.enable_eager_execution()
 """
 Run this module for testing.
-Required args: --data_dir, --save_dir
+Required args: --data_dir, --save_dir, --results_dir
 """
 if __name__ == "__main__":
     opt = Options().parse(training=False)

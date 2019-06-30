@@ -54,7 +54,7 @@ class Dataset(object):
         if self.opt.gpu_id != -1:
             train_datasetA = train_datasetA.apply(tf.contrib.data.prefetch_to_device(self.gpu_id, buffer_size=1))
             train_datasetB = train_datasetB.apply(tf.contrib.data.prefetch_to_device(self.gpu_id, buffer_size=1))
-        # Create a tf.data.Iterator from the Datasets:
+        # Create a tf.data.Iterator from each Dataset:
         return iter(train_datasetA), iter(train_datasetB)
 
     def load_test_data(self):

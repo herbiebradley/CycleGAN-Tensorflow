@@ -233,5 +233,4 @@ class Discriminator(tf.keras.Model):
         x = self.leaky(x)
 
         x = self.conv5(x)
-        #x = tf.nn.sigmoid(x) # use_sigmoid = not use_lsgan TODO
         return x

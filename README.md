@@ -15,7 +15,6 @@ Project Organization
     ├── Makefile           <- Makefile with commands like `make data` or `make train`
     ├── setup.py           <- makes project pip installable (pip install -e .) so src can be imported
     ├── LICENSE
-    ├── eval_cityscapes    <- This contains scripts for getting the experiment results.
     └── src                <- Source code for use in this project
         ├── __init__.py    <- Makes src a Python module
         │
