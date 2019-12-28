@@ -6,7 +6,6 @@ A Tensorflow implementation of [Unpaired Image-to-Image Translation using Cycle-
 Requirements:
 
 - Tensorflow 1.11
-- Python 3.6
 
 Thanks to the original authors PyTorch implementation for inspiration: https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix
 
@@ -14,7 +13,7 @@ Project Organization
 ------------
 
     ├── README.md
-    ├── Makefile           <- Makefile with commands like `make data` or `make train`
+    ├── requirements.txt   <- Use `pip install -r requirements.txt`
     ├── setup.py           <- makes project pip installable (pip install -e .) so src can be imported
     ├── LICENSE
     └── src                <- Source code for use in this project
